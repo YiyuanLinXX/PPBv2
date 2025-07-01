@@ -6,21 +6,7 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on June 30, 2025
 
 
 
-This repository includes the codebase for our phenotyping robot PPBv2.
-
-
-
-## Dependencies
-
-1. Install ROS 2 Humble following the official [instruction](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html).
-
-2. Install FLIR Spinnaker 4.2.0.88 SDK for UBuntu 22.04 and Spinnaker SDK for Python 3.10 (PySpin) following the FLIR official [instruction](https://www.teledynevisionsolutions.com/products/spinnaker-sdk/?model=Spinnaker%20SDK&vertical=machine%20vision&segment=iis)
-
-3. Install necessary Python packages by running
-
-   ```bash
-   pip install pyserial
-   ```
+This repository includes the codebase for our phenotyping robot PhytoPatholoBot version 2 (PPBv2). PPBv2 is a mobile robotic platform designed for high-throughput phenotyping in field environments and optimized for tasks such as disease phenotyping, supporting precise spatiotemporal mapping of phenotypic traits. Equipped with an active illumination system and stereo imaging, PPBv2 enables robust and consistent visual data acquisition under natural lighting variability. The robot is powered by a Raspberry Pi 5 for navigation control and integrates with external triggers and logging systems for synchronized image capture and georeferencing.
 
 
 
