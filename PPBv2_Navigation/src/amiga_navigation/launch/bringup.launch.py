@@ -85,14 +85,6 @@ def generate_launch_description():
         ]
     )
 
-    # imu_filter_node
-    imu_filter_node = Node(
-        package='amiga_navigation',  
-        executable='imu_filter_node',
-        name='imu_filter_node',
-        output='screen'
-    )
-
     imu_monitor_node = Node(
         package='amiga_navigation',  
         executable='imu_monitor_node',
@@ -124,7 +116,6 @@ def generate_launch_description():
         gps_publisher_node,
         rtk_status_monitor_node,
         com,
-        imu_filter_node,
         imu_monitor_node,
         gps_to_enu_odometry_node,
         logged_waypoint_follower
