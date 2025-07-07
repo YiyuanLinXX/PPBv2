@@ -64,3 +64,7 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
    ```
 
    
+
+## Maintenance
+
+For any questions or uncertainty, please contact Yiyuan Lin ([yl3663@cornell.edu](mailto:yl3663@cornell.edu)).
