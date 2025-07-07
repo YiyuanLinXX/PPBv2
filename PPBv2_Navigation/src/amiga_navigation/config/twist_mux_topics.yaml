@@ -1,0 +1,20 @@
+/twist_mux:
+  ros__parameters:
+    use_stamped: false
+    topics:
+      dangerous:
+        topic   : cmd_vel_stop
+        timeout : 1.0
+        priority: 1
+      default:
+        topic   : cmd_vel
+        timeout : 0.5
+        priority: 20
+      keyboard:
+        topic   : cmd_vel_key
+        timeout : 0.5
+        priority: 15
+      navigation:
+        topic   : cmd_vel_nav
+        timeout : 0.5
+        priority: 10
