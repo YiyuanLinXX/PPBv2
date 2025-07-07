@@ -20,7 +20,7 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
 
 1. Farm-ng Amiga robot
 2. Emlid Reach RS3 GNSS receiver
-3. Raspberry Pi
+3. Raspberry Pi 5
 4. Adafruit Feather M4 CAN micro controller
 
 
@@ -54,6 +54,13 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
 
 
 2. log the waypoint for navigation
+
+   ```bash
+   ros2 run amiga_navigation gps_publisher
+   ros2 run amiga_navigation gps_waypoint_logger_keyboard
+   ```
+
+   
 
 
 
