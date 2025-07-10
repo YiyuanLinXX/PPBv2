@@ -1,6 +1,6 @@
 # PPBv2 Imaging
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on June 30, 2025
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 10, 2025
 
 ---
 
@@ -15,6 +15,7 @@ This is the ROS 2 package for synchronized multi-camera image triggering, GPS da
 1. NVIDIA Jetson AGX Orin 64GB
 2. Arduino UNO M4 WiFi
 3. PhenoStereo illumination system (FieldRobo, LLC, Ames, IA)
+4. FLIR Blackfly S BFS-U3-123S6C-C RGB cameras (stereo setup)
 
 
 
