@@ -50,7 +50,7 @@ class GpsPublisher(Node):
         self.imu_state = -1
         self.imu_notification = -1
 
-        self.create_timer(0.1, self.timer_callback)
+        self.create_timer(0.05, self.timer_callback)
 
     def timer_callback(self):
         try:
