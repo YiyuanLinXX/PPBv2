@@ -21,6 +21,7 @@ ROS 2 Version: Jazzy
 """
 
 import math
+import sys
 import csv
 import time
 import shutil
@@ -77,6 +78,10 @@ class LoggedWaypointFollower(Node):
 
         # Controller
         self.controller = LineTrackingController(self.get_logger())
+        self.get_logger().info(
+            f"LineTrackingController PID params: kp={self.controller.pid.Kp}, "
+            f"ki={self.controller.pid.Ki}, kd={self.controller.pid.Kd}"
+        )
 
         # Initialize log file
         with open(self.csv_log_path, 'w', newline='') as f:
@@ -105,11 +110,11 @@ class LoggedWaypointFollower(Node):
         waypoints = []
         with open(path, 'r') as f:
             reader = csv.reader(f)
+            next(reader)  # skip header line
             for row in reader:
                 if len(row) >= 2:
                     lat, lon = float(row[0]), float(row[1])
                     waypoints.append((lat, lon))
-        self.get_logger().info(f'Loaded {len(waypoints)} GPS waypoints.')
         return waypoints
 
     def datum_callback(self, msg):
@@ -131,6 +136,13 @@ class LoggedWaypointFollower(Node):
         ori = msg.pose.pose.orientation
         yaw = self.quaternion_to_yaw(ori.x, ori.y, ori.z, ori.w)
         self.pose = [pos.x, pos.y, yaw]
+
+        # Insert current pose as waypoint[0], only once
+        if self.pose[0] is not None and self.transformer is not None and not hasattr(self, 'init_pose_inserted'):
+            init_xy = [self.pose[0], self.pose[1]]
+            self.waypoints_enu.insert(0, init_xy)
+            self.get_logger().info(f'Inserted current position as waypoint 0: {init_xy}')
+            self.init_pose_inserted = True
 
     def control_loop(self):
         if self.reached_final or self.pose[0] is None or self.transformer is None:
@@ -164,14 +176,13 @@ class LoggedWaypointFollower(Node):
 
         # Phase 2: linear tracking
         v, w, error = self.controller.get_cmd_linear(self.route, self.pose)
-
         twist = Twist()
         twist.linear.x = float(v)
         twist.angular.z = float(w)
         self.cmd_pub.publish(twist)
 
         # Log
-        yaw_error = math.atan2(pt2[1]-pt1[1], pt2[0]-pt1[0]) - self.pose[2]
+        yaw_error = math.atan2(pt2[1] - pt1[1], pt2[0] - pt1[0]) - self.pose[2]
         with open(self.csv_log_path, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
@@ -181,7 +192,7 @@ class LoggedWaypointFollower(Node):
                 round(math.degrees(self.pose[2]), 2),
                 round(pt2[0], 3),
                 round(pt2[1], 3),
-                round(math.degrees(math.atan2(pt2[1]-pt1[1], pt2[0]-pt1[0])), 2),
+                round(math.degrees(math.atan2(pt2[1] - pt1[1], pt2[0] - pt1[0])), 2),
                 round(math.degrees(yaw_error), 2)
             ])
 
@@ -205,7 +216,7 @@ class LoggedWaypointFollower(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    args_without_ros = remove_ros_args(args if args else [])
+    args_without_ros = remove_ros_args(sys.argv)
     parser = ArgumentParser()
     parser.add_argument('--waypoints', required=True, help='Path to CSV file containing latitude,longitude waypoints')
     parsed_args = parser.parse_args(args_without_ros[1:])
@@ -222,4 +233,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-

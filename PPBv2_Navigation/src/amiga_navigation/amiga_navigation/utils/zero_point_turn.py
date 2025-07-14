@@ -2,7 +2,7 @@ import numpy as np
 from simple_pid import PID
 
 
-turning_speed = 0.3 #speed at which the robot is commanded to perform the zero point turn such that it aligns to the route segment
+turning_speed = 0.5 #speed at which the robot is commanded to perform the zero point turn such that it aligns to the route segment
 def get_cmd_turning(route, pose):
         th = pose[2]
         dx = route[1][0] - route[0][0]  # x difference to end point

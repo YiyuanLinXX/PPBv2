@@ -17,7 +17,12 @@ Route = List[Point2D]  # [start_point, end_point]
 #v_x_l = 0.5 #target velocity parallel to the line
 #v_y_l_max = 0.3 #maximum velocity perpendicular to the line
 
-MAX_ERROR = 1.0
+MAX_ERROR = 3.0
+
+DIST_START_THRESHOLD = 4.0
+DIST_STOP_THRESHOLD = 1.0
+VEL_INITIAL_RATIO = 0.3 #Cannot be 0
+VEL_STOP_RATIO = 0
 
 def is_aligned(route: Route, pose: Point3D, text_publisher) -> bool:
     """
@@ -189,11 +194,11 @@ class LineTrackingController:
     def __init__(
         self,
         text_publisher,
-        v_x_l: float = 0.5,
-        v_y_l_max: float = 0.3,
+        v_x_l: float = 1.3,
+        v_y_l_max: float = 0.5,
         epsilon: float = 0.5,
-        kp: float = 0.8,
-        ki: float = 0.4,
+        kp: float = 0.4,
+        ki: float = 0.05,
         kd: float = 0.4,
         regulate_v_x_l: bool = False,
         is_turning: bool = False
@@ -220,6 +225,9 @@ class LineTrackingController:
         self.regulate_v_x_l = regulate_v_x_l
         self.is_turning = is_turning
         self.text_publisher = text_publisher
+        self.v_x_l_start = v_x_l*VEL_INITIAL_RATIO 
+        self.v_x_l_stop = v_x_l*VEL_STOP_RATIO
+
 
     def get_cmd_linear(
         self,
@@ -246,7 +254,14 @@ class LineTrackingController:
         
         error = get_cross_track_error(pt1, pt2, pt3, pt4)
         print(f"Cross-track error: {error}")
+
+        dist_goal = np.linalg.norm(pt2 - pt4)
+        print(f"Distance to goal: {dist_goal}")
+
+        dist_start = np.linalg.norm(pt4 - pt1)
+        print(f"Distance to goal: {dist_start}")
         
+
         # Safety check for large deviations
         if not self.is_turning and abs(error) > MAX_ERROR:
             print("Error: Deviation too large. Check localization and restart navigation!")
@@ -266,13 +281,28 @@ class LineTrackingController:
         
         # Determine forward velocity
         current_v_x_l = adjust_v_x_l if adjust_v_x_l != -1 else self.v_x_l
-        
+    
         # Adjust forward velocity if needed
         if self.regulate_v_x_l:
             if current_v_x_l**2 <= v_y_l**2:
                 raise ValueError("Target velocity too low for required correction")
             current_v_x_l = np.sqrt(current_v_x_l**2 - v_y_l**2)
-            
+
+        v_start = current_v_x_l
+        v_stop = current_v_x_l
+
+        # Smooth ramp-up at start
+        if dist_start < DIST_START_THRESHOLD:
+            v_start = self.v_x_l_start + (current_v_x_l - self.v_x_l_start) * (dist_start / DIST_START_THRESHOLD)
+
+        # Smooth slowdown near goal
+        if dist_goal < DIST_STOP_THRESHOLD:
+            v_stop = current_v_x_l - (current_v_x_l - self.v_x_l_stop) * ((DIST_STOP_THRESHOLD - dist_goal) / DIST_STOP_THRESHOLD)
+
+        # Take the minimum to ensure smooth and safe control
+        current_v_x_l = min(current_v_x_l, v_start, v_stop)
+
+
         # Transform to world coordinates
         vx, vy = np.dot(R, [current_v_x_l, v_y_l])
         
