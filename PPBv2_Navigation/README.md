@@ -87,9 +87,13 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
 We use a **PID controller** to minimize the **cross-track error**, which is the signed distance between the robot and the planned path segment. The controller adjusts the robot's lateral velocity (`v_y_l`) perpendicular to the path, enabling smooth and accurate line tracking.
 
 The PID controller computes correction as:
+
+
 $$
 v_{y_l} = K_p \cdot e(t) + K_i \cdot \int e(t)\,dt + K_d \cdot \frac{d}{dt} e(t)
 $$
+
+
 Where:
 
 - $e(t)$ is the cross-track error at time ttt
