@@ -1,6 +1,6 @@
 # Amiga_Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 7, 2025
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 15, 2025
 
 ---
 
@@ -102,6 +102,28 @@ Where:
 - $K_d$ (derivative gain): predicts future error based on rate of change
 
 The computed lateral velocity is rotated to the world frame and combined with a forward velocity (`v_x_l`) to generate robot motion commands (`v`, `w`) using a differential drive model.
+
+You can tune the PID parameters in `/amiga_navigation/utils/linear_drive.py`:
+
+```python
+class LineTrackingController:
+    """Controller for tracking a line path using PID control."""
+    
+    def __init__(
+        self,
+        text_publisher,
+        v_x_l: float = 1.3,
+        v_y_l_max: float = 0.5,
+        epsilon: float = 0.5,
+        kp: float = 0.4,  # P, Proportional
+        ki: float = 0.05, # I, Integral
+        kd: float = 0.4,  # D, Derivative
+        regulate_v_x_l: bool = False,
+        is_turning: bool = False
+    ):
+```
+
+
 
 ### PID Parameter Tuning Guide
 
