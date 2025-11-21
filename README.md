@@ -8,7 +8,9 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 07, 2025
 
 This repository includes the codebase for our phenotyping robot PhytoPatholoBot version 2 (PPBv2). PPBv2 is a mobile robotic platform designed for high-throughput phenotyping in field environments and optimized for tasks such as disease phenotyping, supporting precise spatiotemporal mapping of phenotypic traits. Equipped with an active illumination system and stereo imaging, PPBv2 enables robust and consistent visual data acquisition under natural lighting variability. The robot is powered by a Raspberry Pi 5 for navigation control and integrates with external triggers and logging systems for synchronized image capture and georeferencing.
 
-
+<p align="center">
+  <img src="assets/ppbv2_in_field.gif" width="100%" />
+</p>
 
 ## PPBv2 Navigation
 
