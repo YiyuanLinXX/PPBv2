@@ -18,7 +18,7 @@ This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Am
 
 For implementation details, please refer to: [PPBv2 Navigation README](PPBv2_Navigation/README.md).
 
-Note: The navigation codebase will be further upgraded and publicly released by June 2026.
+**Note: The navigation codebase will be further upgraded and publicly released by June 2026.**
 
 ## PPBv2 Imaging
 
