@@ -1,6 +1,6 @@
 # Amiga_Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 15, 2025
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Mar 10, 2026
 
 ---
 
@@ -85,6 +85,8 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
 ## PID Controller for Line Tracking
 
 We use a **PID controller** to minimize the **cross-track error**, which is the signed distance between the robot and the planned path segment. The controller adjusts the robot's lateral velocity (`v_y_l`) perpendicular to the path, enabling smooth and accurate line tracking.
+
+![nav_diagram](../assets/error_define.png)
 
 The PID controller computes correction as:
 

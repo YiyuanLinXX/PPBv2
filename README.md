@@ -1,6 +1,6 @@
 # PPBv2
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 07, 2025
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Mar 10, 2026
 
 ---
 
@@ -14,13 +14,17 @@ This repository includes the codebase for our phenotyping robot PhytoPatholoBot 
 
 ## PPBv2 Navigation
 
-This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Amiga robot. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy. Please refer to [PPBv2 Navigation README](PPBv2_Navigation/README.md) for detailed information of implementation.
+This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Amiga robot. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy.
 
+For implementation details, please refer to: [PPBv2 Navigation README](PPBv2_Navigation/README.md).
 
+Note: The navigation codebase will be further upgraded and publicly released by June 2026.
 
 ## PPBv2 Imaging
 
-This is the ROS 2 package for synchronized multi-camera image triggering, GPS data logging, and external strobe light control for high-throughput  phenotyping. The codebase is deployed on NVIDIA Jetson AGX Orin with ROS2 Humble. Please refer to [PPBv2 Imaging README](PPBv2_Imaging/README.md) for detailed information of implementation.
+This is the ROS 2 package for synchronized multi-camera image triggering, GPS data logging, and external strobe light control for high-throughput  phenotyping. The codebase is deployed on NVIDIA Jetson AGX Orin with ROS2 Humble.
+
+For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imaging/README.md).
 
 
 
