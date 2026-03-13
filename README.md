@@ -12,6 +12,9 @@ This repository includes the codebase for our phenotyping robot PhytoPatholoBot 
   <img src="assets/ppbv2_in_field.gif" width="100%" />
 </p>
 
+## PPBv2 Modular Design
+<img src="assets/PPBv2_System_Modular_Design_20260312_horizontal.png" width="100%" />
+
 ## PPBv2 Navigation
 
 This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Amiga robot. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy.
@@ -26,8 +29,7 @@ This is the ROS 2 package for synchronized multi-camera image triggering, GPS da
 
 For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imaging/README.md).
 
-## PPBv2 Modular Design
-<img src="assets/PPBv2_System_Modular_Design_20260312_horizontal.png" width="100%" />
+
 
 ## Maintenance
 
