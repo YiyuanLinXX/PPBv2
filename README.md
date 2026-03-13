@@ -27,7 +27,7 @@ This is the ROS 2 package for synchronized multi-camera image triggering, GPS da
 For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imaging/README.md).
 
 ## PPBv2 Modular Design
-<img src="assets/PPBv2_System_Modular_Design_20260312.png" width="75%" />
+<img src="assets/PPBv2_System_Modular_Design_20260312_horizontal.png" width="100%" />
 
 ## Maintenance
 
