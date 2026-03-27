@@ -1,28 +1,31 @@
 #!/usr/bin/env python3
 # coding=utf-8
 # gps_logger_node.py
-# ROS2 node: subscribe to /gps/utc and /gps/fix, log data into a CSV file
+# ROS2 node: subscribe to /gps/fix_detail and log synchronized GPS data
 
-import os
 import csv
+import json
+import os
+
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from sensor_msgs.msg import NavSatFix
+
 
 class GpsLogger(Node):
     def __init__(self):
         super().__init__('gps_logger')
-        # Declare and read log file parameter
-        self.declare_parameter('log_file', '/tmp/gps_log.csv')
-        log_file = self.get_parameter('log_file').get_parameter_value().string_value
 
-        # Ensure directory exists
+        self.declare_parameter('log_file', '/tmp/gps_log.csv')
+        self.declare_parameter('gps_detail_topic', '/gps/fix_detail')
+
+        log_file = self.get_parameter('log_file').get_parameter_value().string_value
+        gps_detail_topic = self.get_parameter('gps_detail_topic').get_parameter_value().string_value
+
         directory = os.path.dirname(log_file)
         if directory and not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
 
-        # Open CSV and write header
         self.csv_file = open(log_file, 'w', newline='')
         self.writer = csv.writer(self.csv_file)
         self.writer.writerow([
@@ -31,56 +34,51 @@ class GpsLogger(Node):
             'Latitude',
             'Longitude',
             'Altitude',
-            'Fix Quality'
+            'Fix Quality',
         ])
         self.csv_file.flush()
 
-        # Cache latest UTC string
-        self.latest_utc = ''
+        self.create_subscription(String, gps_detail_topic, self.detail_callback, 10)
 
-        # Subscribe to /gps/utc (String) and /gps/fix (NavSatFix)
-        self.create_subscription(String, '/gps/utc', self.utc_callback, 10)
-        self.create_subscription(NavSatFix, '/gps/fix', self.fix_callback, 10)
+    def detail_callback(self, msg: String):
+        try:
+            payload = json.loads(msg.data)
+        except json.JSONDecodeError as exc:
+            self.get_logger().warn(f'Ignoring malformed /gps/fix_detail payload: {exc}')
+            return
 
-    def utc_callback(self, msg: String):
-        # Update latest UTC string on each message
-        self.latest_utc = msg.data
+        latitude = payload.get('latitude')
+        longitude = payload.get('longitude')
+        altitude = payload.get('altitude')
 
-    def fix_callback(self, msg: NavSatFix):
-        # Format ROS timestamp as sec.nanosec
-        t = msg.header.stamp
-        ros_ts = f"{t.sec}.{t.nanosec:09d}"
-        # Extract coordinates and fix quality
-        lat = msg.latitude
-        lon = msg.longitude
-        alt = msg.altitude
-        quality = msg.status.status
-
-        # Write one CSV row for every fix message (including no-fix)
         self.writer.writerow([
-            self.latest_utc,
-            ros_ts,
-            f"{lat:.9f}",
-            f"{lon:.9f}",
-            f"{alt:.2f}",
-            quality
+            payload.get('satellite_utc', ''),
+            payload.get('ros_time', ''),
+            f'{latitude:.9f}' if latitude is not None else '',
+            f'{longitude:.9f}' if longitude is not None else '',
+            f'{altitude:.2f}' if altitude is not None else '',
+            payload.get('fix_quality', ''),
         ])
         self.csv_file.flush()
 
     def destroy_node(self):
-        # Close the CSV file on shutdown
         try:
             self.csv_file.close()
-        except:
+        except Exception:
             pass
         super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = GpsLogger()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
