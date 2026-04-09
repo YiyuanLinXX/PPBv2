@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-datum_publisher_node.py
-
-This node subscribes to /gps/fix and uses the first received GPS fix 
-as the datum (reference point). The datum is then continuously published
-to /gps/datum at 10 Hz so that all other nodes can use the same reference point.
-
-Usage:
-    ros2 run <your_package_name> datum_publisher_node
-"""
+"""Publish a fixed GPS datum derived from the first /gps/fix message."""
 
 import rclpy
 from rclpy.node import Node
@@ -20,7 +11,7 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 class DatumPublisherNode(Node):
     def __init__(self):
-        super().__init__('datum_publisher_node')
+        super().__init__('datum_publisher')
 
         # Define QoS profile with TRANSIENT_LOCAL so late subscribers can receive the latest datum
         qos_profile = QoSProfile(

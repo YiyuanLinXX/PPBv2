@@ -3,20 +3,25 @@
 <package format="3">
   <name>amiga_navigation</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Lightweight GNSS plus IMU waypoint navigation package for the Amiga robot.</description>
   <maintainer email="cairlab@todo.todo">cairlab</maintainer>
   <license>TODO: License declaration</license>
 
-  <depend>navigation2</depend>
-  <depend>robot_localization</depend>
   <depend>rclpy</depend>
+  <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>nav2_msgs</depend>
-  <depend>nav2_simple_commander</depend>
-  <depend>yaml</depend>
   <depend>tf_transformations</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+  <exec_depend>python3-pyproj</exec_depend>
+  <exec_depend>python3-pynmea2</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

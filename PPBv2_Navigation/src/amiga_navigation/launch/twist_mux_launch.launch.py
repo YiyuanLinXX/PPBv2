@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-"""
-twist_mux_launch.launch.py
+"""Launch the twist_mux node to arbitrate multiple cmd_vel sources."""
 
-Launch the twist_mux node to arbitrate multiple cmd_vel sources.
-"""
-
-#!/usr/bin/env python3
 import os
 
 from ament_index_python.packages import get_package_share_directory

@@ -1,52 +1,53 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gps_waypoint_logger_keyboard.py
+Record GPS waypoints from the keyboard into `latest_waypoints.csv` and a snapshot CSV.
 
-Record GPS (NavSatFix) pose to two CSV files when SPACE is pressed:
-  • latest_waypoints.csv        (overwritten each time, session-local)
-  • waypoints_YYYY_MM_DD_HH_MM_SS.csv  (historical snapshot created once per session)
-
-Press 'q' to quit.
-
-Usage:
-  ros2 run amiga_navigation gps_waypoint_logger_keyboard \
-    --output_dir /home/cairlab/navigation_waypoints
+Press SPACE to log the current GPS fix and `q` to quit.
 """
 
-import os
-import sys
+import argparse
 import csv
+from datetime import datetime
+import os
+from pathlib import Path
+import re
 import select
+import sys
 import termios
 import tty
-import argparse
-from datetime import datetime
 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix
 
 
-class GpsKeyboardLogger(Node):
-    def __init__(self, output_dir: str):
-        super().__init__('gps_keyboard_logger')
+class GnssWaypointKeyboardLogger(Node):
+    def __init__(self, output_dir: str, snapshot_name: str | None = None):
+        super().__init__('gnss_waypoint_keyboard_logger')
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.latest_path = os.path.join(self.output_dir, 'latest_waypoints.csv')
-        ts = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-        self.hist_path = os.path.join(self.output_dir, f"waypoints_{ts}.csv")
+        self.hist_path = os.path.join(self.output_dir, self._build_snapshot_filename(snapshot_name))
 
         self.last_gps = None  # type: NavSatFix
         self.logged_waypoints = []
 
         # Subscriptions
-        self.create_subscription(NavSatFix, 'gps/fix', self.gps_cb, 10)
+        self.create_subscription(NavSatFix, '/gps/fix', self.gps_cb, 10)
 
         self.get_logger().info(f"Output directory: {self.output_dir}")
         self.get_logger().info(f"Historical snapshot file: {os.path.basename(self.hist_path)}")
         self.get_logger().info("Press SPACE to log waypoint, 'q' to quit.")
+
+    @staticmethod
+    def _build_snapshot_filename(snapshot_name: str | None):
+        if snapshot_name:
+            return f'{snapshot_name}.csv'
+
+        ts = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+        return f"waypoints_{ts}.csv"
 
     def gps_cb(self, msg: NavSatFix):
         """Store the latest GPS fix."""
@@ -100,6 +101,33 @@ def restore_terminal(old_settings):
     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
+def sanitize_snapshot_name(name: str):
+    cleaned = Path(name.strip()).name
+    cleaned = re.sub(r'\.csv$', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'[^A-Za-z0-9._-]+', '_', cleaned).strip('._-')
+    return cleaned or None
+
+
+def choose_snapshot_name():
+    if not sys.stdin.isatty():
+        return None
+
+    answer = input(
+        'Do you want to manually name the waypoint snapshot CSV file? [y/N]: '
+    ).strip().lower()
+    if answer not in ('y', 'yes'):
+        return None
+
+    while True:
+        raw_name = input(
+            'Enter snapshot file name (without .csv, latest_waypoints.csv will still be updated): '
+        )
+        snapshot_name = sanitize_snapshot_name(raw_name)
+        if snapshot_name:
+            return snapshot_name
+        print('Invalid file name. Use letters, numbers, ".", "_" or "-".')
+
+
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -110,9 +138,10 @@ def main(args=None):
         help='Directory to save latest and timestamped waypoint files'
     )
     parsed, unknown = parser.parse_known_args()
+    snapshot_name = choose_snapshot_name()
 
     rclpy.init(args=unknown)
-    node = GpsKeyboardLogger(parsed.output_dir)
+    node = GnssWaypointKeyboardLogger(parsed.output_dir, snapshot_name=snapshot_name)
 
     old_settings = configure_terminal()
     try:
