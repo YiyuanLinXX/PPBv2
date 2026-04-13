@@ -172,6 +172,7 @@ class WaypointFollower(Node):
         self.reached_final = False
         self.phase = 'waiting_for_pose'
         self.init_pose_inserted = False
+        self.segment_aligned = False
         self.current_route = None
         self.active_controller_name = self.selected_controller_type
 
@@ -191,9 +192,9 @@ class WaypointFollower(Node):
         self.declare_parameter('log_directory', '/home/cairlab/navigation_waypoints')
         self.declare_parameter('status_path', '/home/cairlab/navigation_waypoints/status.txt')
         self.declare_parameter('last_waypoints_path', '/home/cairlab/navigation_waypoints/last_waypoints.csv')
-        self.declare_parameter('controller_type', 'row_hybrid')
+        self.declare_parameter('controller_type', 'pid_line')
 
-        self.declare_parameter('target_speed', 1.2)
+        self.declare_parameter('target_speed', 0.8)
         self.declare_parameter('max_lateral_speed', 0.5)
         self.declare_parameter('epsilon', 0.5)
         self.declare_parameter('pid_kp', 0.4)
@@ -202,18 +203,18 @@ class WaypointFollower(Node):
         self.declare_parameter('heading_gain', 1.2)
         self.declare_parameter('max_angular_speed', 0.8)
         self.declare_parameter('min_forward_ratio', 0.2)
-        self.declare_parameter('max_heading_for_full_speed', 0.3)
+        self.declare_parameter('max_heading_for_full_speed', 0.2)
         self.declare_parameter('max_cross_track_error', 1.0)
         self.declare_parameter('goal_threshold', 0.30)
-        self.declare_parameter('alignment_threshold', 0.10)
-        self.declare_parameter('dist_start_threshold', 3.0)
+        self.declare_parameter('alignment_threshold', 0.14)
+        self.declare_parameter('dist_start_threshold', 5.0)
         self.declare_parameter('dist_stop_threshold', 1.0)
-        self.declare_parameter('initial_speed_ratio', 0.3)
+        self.declare_parameter('initial_speed_ratio', 0.2)
         self.declare_parameter('stop_speed_ratio', 0.0)
         self.declare_parameter('regulate_target_speed', True)
-        self.declare_parameter('turn_gain', 1.2)
-        self.declare_parameter('turn_min_speed', 0.3)
-        self.declare_parameter('turn_max_speed', 0.8)
+        self.declare_parameter('turn_gain', 0.8)
+        self.declare_parameter('turn_min_speed', 0.15)
+        self.declare_parameter('turn_max_speed', 0.45)
         self.declare_parameter('pure_pursuit_min_lookahead', 1.5)
         self.declare_parameter('pure_pursuit_max_lookahead', 6.0)
         self.declare_parameter('pure_pursuit_lookahead_gain', 2.5)
@@ -441,19 +442,20 @@ class WaypointFollower(Node):
             self.waypoints_enu[self.current_index + 1],
         ]
 
-        turn_command = compute_turn_command(self.current_route, self.pose, self.turn_config)
-        if not turn_command.aligned:
-            self.phase = 'aligning'
-            self.active_controller_name = 'alignment_turn'
-            self._publish_twist(0.0, turn_command.angular_velocity)
-            self._publish_debug({
-                'heading_error': turn_command.heading_error,
-                'cmd_w': turn_command.angular_velocity,
-            })
-            self._log_control_sample(turn_command=turn_command)
-            return
+        if not self.segment_aligned:
+            turn_command = compute_turn_command(self.current_route, self.pose, self.turn_config)
+            if not turn_command.aligned:
+                self.phase = 'aligning'
+                self.active_controller_name = 'alignment_turn'
+                self._publish_twist(0.0, turn_command.angular_velocity)
+                self._publish_debug({
+                    'heading_error': turn_command.heading_error,
+                    'cmd_w': turn_command.angular_velocity,
+                })
+                self._log_control_sample(turn_command=turn_command)
+                return
 
-        if self.phase != 'tracking':
+            self.segment_aligned = True
             self.controller.reset()
             self.phase = 'tracking'
             self.get_logger().info(f'Alignment complete for waypoint segment {self.current_index} -> {self.current_index + 1}')
@@ -482,6 +484,7 @@ class WaypointFollower(Node):
         if is_goal_reached(self.current_route, self.pose, self.tracking_config.goal_threshold):
             self.get_logger().info(f'Reached waypoint {self.current_index + 1}')
             self.current_index += 1
+            self.segment_aligned = False
             self.phase = 'aligning'
             self.controller.reset()
             self.update_status_file()

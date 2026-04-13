@@ -24,20 +24,20 @@
     log_directory: /home/cairlab/navigation_waypoints
     status_path: /home/cairlab/navigation_waypoints/status.txt
     last_waypoints_path: /home/cairlab/navigation_waypoints/last_waypoints.csv
-    controller_type: row_hybrid # options: pid_line, pure_pursuit, mpc_rollout, mpc_formal, row_hybrid
+    controller_type: pid_line # options: pid_line, pure_pursuit, mpc_rollout, mpc_formal, row_hybrid
     target_speed: 1.2
     max_angular_speed: 0.8
-    min_forward_ratio: 0.2
+    min_forward_ratio: 0.4
     max_cross_track_error: 1.0
     goal_threshold: 0.30
-    alignment_threshold: 0.10
+    alignment_threshold: 0.14
 
     # Alignment turn controller parameters.
     # turn_gain: proportional gain for in-place alignment.
     # turn_min_speed: minimum angular speed during alignment in rad/s.
     # turn_max_speed: maximum angular speed during alignment in rad/s.
-    turn_gain: 1.2
-    turn_min_speed: 0.3
+    turn_gain: 0.8
+    turn_min_speed: 0.2
     turn_max_speed: 0.8
 
 
@@ -62,10 +62,10 @@
     pid_ki: 0.05
     pid_kd: 0.4
     heading_gain: 1.2
-    max_heading_for_full_speed: 0.3
-    dist_start_threshold: 3.0
+    max_heading_for_full_speed: 0.2
+    dist_start_threshold: 1.0
     dist_stop_threshold: 1.0
-    initial_speed_ratio: 0.3
+    initial_speed_ratio: 0.2
     stop_speed_ratio: 0.0
     regulate_target_speed: true
 
