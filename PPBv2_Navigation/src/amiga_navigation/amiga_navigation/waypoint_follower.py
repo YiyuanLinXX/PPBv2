@@ -13,7 +13,6 @@ import time
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, qos_profile_sensor_data
-from rclpy.utilities import remove_ros_args
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -605,16 +604,6 @@ class WaypointFollower(Node):
 
 def main(args=None):
     raw_args = list(args) if args is not None else list(sys.argv)
-    ros_args = raw_args[1:]
-
-    if '--params-file' not in ros_args:
-        for candidate in DEFAULT_PARAMS_FILE_CANDIDATES:
-            if candidate.exists():
-                ros_args = ['--ros-args', '--params-file', str(candidate), *ros_args]
-                break
-
-    rclpy.init(args=ros_args)
-    args_without_ros = remove_ros_args([raw_args[0], *ros_args])
     parser = ArgumentParser()
     parser.add_argument(
         '--waypoints',
@@ -632,7 +621,15 @@ def main(args=None):
         choices=CONTROLLER_CHOICES,
         help='Force the controller type for this run. This overrides the parameter file.'
     )
-    parsed_args = parser.parse_args(args_without_ros[1:])
+    parsed_args, ros_args = parser.parse_known_args(raw_args[1:])
+
+    if '--params-file' not in ros_args:
+        for candidate in DEFAULT_PARAMS_FILE_CANDIDATES:
+            if candidate.exists():
+                ros_args = ['--ros-args', '--params-file', str(candidate), *ros_args]
+                break
+
+    rclpy.init(args=ros_args)
 
     node = WaypointFollower(
         parsed_args.waypoints,
