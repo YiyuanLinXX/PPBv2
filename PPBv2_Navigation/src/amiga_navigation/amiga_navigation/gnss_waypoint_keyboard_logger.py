@@ -37,9 +37,22 @@ class GnssWaypointKeyboardLogger(Node):
         # Subscriptions
         self.create_subscription(NavSatFix, '/gps/fix', self.gps_cb, 10)
 
-        self.get_logger().info(f"Output directory: {self.output_dir}")
-        self.get_logger().info(f"Historical snapshot file: {os.path.basename(self.hist_path)}")
-        self.get_logger().info("Press SPACE to log waypoint, 'q' to quit.")
+        self._log_terminal_message('info', f"Output directory: {self.output_dir}")
+        self._log_terminal_message('info', f"Historical snapshot file: {os.path.basename(self.hist_path)}")
+        self._log_terminal_message('info', "Press SPACE to log waypoint, 'q' to quit.")
+
+    @staticmethod
+    def _prepare_terminal_line():
+        """Clear any partial raw-terminal content before printing a normal log line."""
+        if not sys.stdout.isatty():
+            return
+        sys.stdout.write('\r\033[2K')
+        sys.stdout.flush()
+
+    def _log_terminal_message(self, level: str, message: str):
+        self._prepare_terminal_line()
+        log_fn = getattr(self.get_logger(), level)
+        log_fn(message)
 
     @staticmethod
     def _build_snapshot_filename(snapshot_name: str | None):
@@ -56,7 +69,7 @@ class GnssWaypointKeyboardLogger(Node):
     def log_waypoint(self):
         """Append the current (lat, lon) to memory and write to CSV files."""
         if self.last_gps is None:
-            self.get_logger().warn("No GPS data received yet.")
+            self._log_terminal_message('warn', "No GPS data received yet.")
             return
 
         lat = self.last_gps.latitude
@@ -70,7 +83,7 @@ class GnssWaypointKeyboardLogger(Node):
                 writer.writerow(['latitude', 'longitude'])
                 writer.writerows(self.logged_waypoints)
         except Exception as e:
-            self.get_logger().error(f"Failed to write latest CSV: {e}")
+            self._log_terminal_message('error', f"Failed to write latest CSV: {e}")
             return
 
         # Save historical snapshot CSV (overwrite each time for safety)
@@ -80,11 +93,12 @@ class GnssWaypointKeyboardLogger(Node):
                 writer.writerow(['latitude', 'longitude'])
                 writer.writerows(self.logged_waypoints)
         except Exception as e:
-            self.get_logger().error(f"Failed to write history CSV: {e}")
+            self._log_terminal_message('error', f"Failed to write history CSV: {e}")
             return
 
         idx = len(self.logged_waypoints)
-        self.get_logger().info(
+        self._log_terminal_message(
+            'info',
             f"Logged waypoint #{idx}: lat={lat:.6f}, lon={lon:.6f} → saved to CSV"
         )
 
@@ -160,7 +174,10 @@ def main(args=None):
         node.destroy_node()
         rclpy.shutdown()
 
-        print("\nExited GPS Keyboard Logger.")
+        if sys.stdout.isatty():
+            sys.stdout.write('\r\033[2K')
+            sys.stdout.flush()
+        print("Exited GPS Keyboard Logger.")
         print(f"Waypoints saved to:")
         print(f"  Latest → {node.latest_path}")
         print(f"  Snapshot → {node.hist_path}")

@@ -22,7 +22,11 @@ from pyproj import Transformer
 from amiga_navigation.utils.pid_line_controller import (
     LineTrackingConfig,
 )
-from amiga_navigation.utils.tracking_geometry import TrackingCommand, is_goal_reached
+from amiga_navigation.utils.tracking_geometry import (
+    TrackingCommand,
+    compute_segment_metrics,
+    is_goal_reached,
+)
 from amiga_navigation.utils.tracking_controller_factory import (
     FormalMPCConfig,
     MPCRolloutConfig,
@@ -52,6 +56,11 @@ class WaypointFollower(Node):
         self.enable_csv_logging = self._get_bool('enable_csv_logging')
         self.publish_debug = self._get_bool('publish_debug')
         self.debug_publish_period_sec = self._get_float('debug_publish_period_sec')
+        self.terminal_status_enabled = self._get_bool('terminal_status_enabled')
+        self.terminal_status_level = self._get_str('terminal_status_level').lower()
+        self.terminal_status_period_sec = self._get_float('terminal_status_period_sec')
+        self.terminal_show_alignment_details = self._get_bool('terminal_show_alignment_details')
+        self.terminal_show_tracking_details = self._get_bool('terminal_show_tracking_details')
 
         self.log_directory = Path(self._get_str('log_directory'))
         self.log_directory.mkdir(parents=True, exist_ok=True)
@@ -87,6 +96,9 @@ class WaypointFollower(Node):
             gain=self._get_float('turn_gain'),
             min_turn_speed=self._get_float('turn_min_speed'),
             max_turn_speed=self._get_float('turn_max_speed'),
+            enable_slowdown_near_target=self._get_bool('turn_enable_slowdown_near_target'),
+            slowdown_angle=self._get_float('turn_slowdown_angle'),
+            near_target_min_speed_ratio=self._get_float('turn_near_target_min_speed_ratio'),
         )
         self.pure_pursuit_config = PurePursuitConfig(
             target_speed=self._get_float('target_speed'),
@@ -167,53 +179,65 @@ class WaypointFollower(Node):
         self.last_odom_time = None
         self.last_odom_warn_time = None
         self.last_debug_publish_time = None
+        self.last_terminal_status_time = None
         self.transformer = None
         self.reached_final = False
         self.phase = 'waiting_for_pose'
+        self.last_phase = None
         self.init_pose_inserted = False
         self.segment_aligned = False
         self.current_route = None
+        self.last_segment_key = None
         self.active_controller_name = self.selected_controller_type
 
         self.waypoints_gps = self.load_csv_waypoints(self.csv_path)
         self.waypoints_enu = []
         self._prepare_waypoint_state()
         self._setup_log_file()
+        self._log_startup_summary()
 
         self.get_logger().info('WaypointFollower initialized')
 
     def _declare_parameters(self):
         self.declare_parameter('control_frequency', 10.0)
         self.declare_parameter('max_odom_age_sec', 0.25)
-        self.declare_parameter('enable_csv_logging', False)
-        self.declare_parameter('publish_debug', False)
+        self.declare_parameter('enable_csv_logging', True)
+        self.declare_parameter('publish_debug', True)
         self.declare_parameter('debug_publish_period_sec', 0.2)
+        self.declare_parameter('terminal_status_enabled', True)
+        self.declare_parameter('terminal_status_level', 'normal')
+        self.declare_parameter('terminal_status_period_sec', 1.5)
+        self.declare_parameter('terminal_show_alignment_details', False)
+        self.declare_parameter('terminal_show_tracking_details', False)
         self.declare_parameter('log_directory', '/home/cairlab/navigation_waypoints')
         self.declare_parameter('status_path', '/home/cairlab/navigation_waypoints/status.txt')
         self.declare_parameter('last_waypoints_path', '/home/cairlab/navigation_waypoints/last_waypoints.csv')
         self.declare_parameter('controller_type', 'pid_line')
 
-        self.declare_parameter('target_speed', 0.8)
-        self.declare_parameter('max_lateral_speed', 0.5)
+        self.declare_parameter('target_speed', 0.85)
+        self.declare_parameter('max_lateral_speed', 0.4)
         self.declare_parameter('epsilon', 0.5)
-        self.declare_parameter('pid_kp', 0.4)
+        self.declare_parameter('pid_kp', 0.38)
         self.declare_parameter('pid_ki', 0.05)
-        self.declare_parameter('pid_kd', 0.4)
-        self.declare_parameter('heading_gain', 1.2)
-        self.declare_parameter('max_angular_speed', 0.8)
+        self.declare_parameter('pid_kd', 0.28)
+        self.declare_parameter('heading_gain', 1.0)
+        self.declare_parameter('max_angular_speed', 0.65)
         self.declare_parameter('min_forward_ratio', 0.2)
-        self.declare_parameter('max_heading_for_full_speed', 0.2)
+        self.declare_parameter('max_heading_for_full_speed', 0.26)
         self.declare_parameter('max_cross_track_error', 1.0)
         self.declare_parameter('goal_threshold', 0.30)
-        self.declare_parameter('alignment_threshold', 0.14)
-        self.declare_parameter('dist_start_threshold', 5.0)
+        self.declare_parameter('alignment_threshold', 0.18)
+        self.declare_parameter('dist_start_threshold', 4.5)
         self.declare_parameter('dist_stop_threshold', 1.0)
-        self.declare_parameter('initial_speed_ratio', 0.2)
+        self.declare_parameter('initial_speed_ratio', 0.22)
         self.declare_parameter('stop_speed_ratio', 0.0)
         self.declare_parameter('regulate_target_speed', True)
-        self.declare_parameter('turn_gain', 0.8)
-        self.declare_parameter('turn_min_speed', 0.15)
-        self.declare_parameter('turn_max_speed', 0.45)
+        self.declare_parameter('turn_gain', 0.7)
+        self.declare_parameter('turn_min_speed', 0.14)
+        self.declare_parameter('turn_max_speed', 0.4)
+        self.declare_parameter('turn_enable_slowdown_near_target', False)
+        self.declare_parameter('turn_slowdown_angle', 0.35)
+        self.declare_parameter('turn_near_target_min_speed_ratio', 0.35)
         self.declare_parameter('pure_pursuit_min_lookahead', 1.5)
         self.declare_parameter('pure_pursuit_max_lookahead', 6.0)
         self.declare_parameter('pure_pursuit_lookahead_gain', 2.5)
@@ -258,6 +282,123 @@ class WaypointFollower(Node):
 
     def _get_str(self, name):
         return str(self.get_parameter(name).value)
+
+    def _terminal_level_value(self, level: str) -> int:
+        levels = {
+            'silent': 0,
+            'normal': 1,
+            'verbose': 2,
+            'debug': 3,
+        }
+        return levels.get(level, levels['normal'])
+
+    def _terminal_enabled_for(self, level: str) -> bool:
+        if not self.terminal_status_enabled:
+            return False
+        return self._terminal_level_value(self.terminal_status_level) >= self._terminal_level_value(level)
+
+    def _terminal_info(self, message: str, level: str = 'normal') -> None:
+        if self._terminal_enabled_for(level):
+            self.get_logger().info(message)
+
+    def _set_phase(self, phase: str, controller_name: str | None = None, detail: str | None = None) -> None:
+        if controller_name is not None:
+            self.active_controller_name = controller_name
+
+        if phase != self.phase:
+            self.last_phase = self.phase
+            self.phase = phase
+            message = f'Phase change: {self.last_phase} -> {self.phase}'
+            if detail:
+                message += f' | {detail}'
+            self._terminal_info(message, level='normal')
+        else:
+            self.phase = phase
+
+    def _format_route_summary(self, route) -> str:
+        start_x, start_y = route[0]
+        goal_x, goal_y = route[1]
+        metrics = compute_segment_metrics(route, [start_x, start_y, 0.0])
+        return (
+            f'segment {self.current_index}->{self.current_index + 1} | '
+            f'start=({start_x:.2f}, {start_y:.2f}) | '
+            f'goal=({goal_x:.2f}, {goal_y:.2f}) | '
+            f'length={metrics.segment_length:.2f} m | '
+            f'heading={math.degrees(metrics.path_angle):.2f} deg'
+        )
+
+    def _maybe_log_segment_start(self) -> None:
+        if self.current_route is None:
+            return
+
+        segment_key = (
+            self.current_index,
+            round(self.current_route[0][0], 3),
+            round(self.current_route[0][1], 3),
+            round(self.current_route[1][0], 3),
+            round(self.current_route[1][1], 3),
+        )
+        if segment_key == self.last_segment_key:
+            return
+
+        self.last_segment_key = segment_key
+        self._terminal_info(f'Entering {self._format_route_summary(self.current_route)}', level='normal')
+
+    def _maybe_log_runtime_status(
+        self,
+        tracking_command: TrackingCommand | None = None,
+        turn_command: TurnCommand | None = None,
+    ) -> None:
+        now = self.get_clock().now()
+        if self.last_terminal_status_time is not None:
+            age = (now - self.last_terminal_status_time).nanoseconds / 1e9
+            if age < self.terminal_status_period_sec:
+                return
+
+        if turn_command is not None and self.terminal_show_alignment_details:
+            self.last_terminal_status_time = now
+            self._terminal_info(
+                'Aligning | '
+                f'wp={self.current_index}->{self.current_index + 1} | '
+                f'heading_error={math.degrees(turn_command.heading_error):.2f} deg | '
+                f'cmd_w={turn_command.angular_velocity:.3f} rad/s | '
+                f'threshold={math.degrees(self.turn_config.alignment_threshold):.2f} deg',
+                level='verbose',
+            )
+            return
+
+        if tracking_command is not None and self.terminal_show_tracking_details:
+            self.last_terminal_status_time = now
+            self._terminal_info(
+                'Tracking | '
+                f'wp={self.current_index}->{self.current_index + 1} | '
+                f'heading_error={math.degrees(tracking_command.heading_error):.2f} deg | '
+                f'cross_track={tracking_command.cross_track_error:.3f} m | '
+                f'dist_to_goal={tracking_command.dist_to_goal:.2f} m | '
+                f'cmd_v={tracking_command.linear_velocity:.3f} m/s | '
+                f'cmd_w={tracking_command.angular_velocity:.3f} rad/s',
+                level='verbose',
+            )
+
+    def _log_startup_summary(self) -> None:
+        self._terminal_info(
+            'Startup summary | '
+            f'waypoints={self.csv_path} | '
+            f'requested={self.requested_csv_path} | '
+            f'resume={self.resume_mode} | '
+            f'controller={self.selected_controller_type} | '
+            f'gps_points={len(self.waypoints_gps)} | '
+            f'terminal_level={self.terminal_status_level}',
+            level='normal',
+        )
+        self._terminal_info(
+            'Startup details | '
+            f'csv_logging={self.enable_csv_logging} | '
+            f'debug_topic={self.publish_debug} | '
+            f'log_dir={self.log_directory} | '
+            f'max_odom_age={self.max_odom_age_sec:.2f}s',
+            level='normal',
+        )
 
     def _log_controller_configuration(self):
         self.get_logger().info(
@@ -346,7 +487,7 @@ class WaypointFollower(Node):
             return
 
         timestamp = int(time.time())
-        csv_log_path = self.log_directory / f'yaw_log_{timestamp}.csv'
+        csv_log_path = self.log_directory / f'waypoint_control_log_{timestamp}.csv'
         self.csv_log_file = csv_log_path.open('w', newline='')
         self.csv_log_writer = csv.writer(self.csv_log_file)
         self.csv_log_writer.writerow([
@@ -354,17 +495,25 @@ class WaypointFollower(Node):
             'phase',
             'controller',
             'waypoint_index',
+            'segment_start_x',
+            'segment_start_y',
             'x',
             'y',
             'yaw_deg',
+            'path_heading_deg',
+            'segment_length_m',
             'target_x',
             'target_y',
             'heading_error_deg',
             'cross_track_error_m',
             'dist_to_goal_m',
+            'dist_from_start_m',
+            'target_speed_mps',
+            'lateral_speed_mps',
             'cmd_v',
             'cmd_w',
         ])
+        self.get_logger().info(f'Control CSV logging enabled: {csv_log_path}')
 
     def load_csv_waypoints(self, path: Path):
         waypoints = []
@@ -409,82 +558,106 @@ class WaypointFollower(Node):
         self.waypoints_enu.insert(0, [self.pose[0], self.pose[1]])
         self.init_pose_inserted = True
         self.get_logger().info(f'Inserted current position as waypoint 0: {[self.pose[0], self.pose[1]]}')
+        self._terminal_info(
+            f'Navigation start pose inserted as waypoint 0 at ({self.pose[0]:.2f}, {self.pose[1]:.2f}).',
+            level='normal',
+        )
 
     def control_loop(self):
         if self.reached_final:
             return
 
         if self.pose is None or self.transformer is None or not self.init_pose_inserted:
-            self.phase = 'waiting_for_pose'
-            self.active_controller_name = 'waiting_for_pose'
+            self._set_phase('waiting_for_pose', controller_name='waiting_for_pose')
             return
 
         if not self._odom_is_fresh():
-            self.phase = 'stale_pose'
-            self.active_controller_name = 'stale_pose'
+            self._set_phase('stale_pose', controller_name='stale_pose', detail='Waiting for fresh /robot/odom.')
             self._publish_stop()
-            self._publish_debug({'reason': 'stale_pose'})
+            self._publish_debug({'reason': 'stale_pose', **self._build_debug_snapshot()})
             return
 
         if self.current_index >= len(self.waypoints_enu) - 1:
-            self.phase = 'complete'
-            self.active_controller_name = 'complete'
+            self._set_phase('complete', controller_name='complete')
             self.reached_final = True
             self._publish_stop()
             self.update_status_file()
             self.get_logger().info('Navigation complete.')
-            self._publish_debug({'reason': 'complete'})
+            self._terminal_info(
+                f'Navigation complete | reached final waypoint index {self.current_index}',
+                level='normal',
+            )
+            self._publish_debug({'reason': 'complete', **self._build_debug_snapshot()})
             return
 
         self.current_route = [
             self.waypoints_enu[self.current_index],
             self.waypoints_enu[self.current_index + 1],
         ]
+        self._maybe_log_segment_start()
 
         if not self.segment_aligned:
             turn_command = compute_turn_command(self.current_route, self.pose, self.turn_config)
             if not turn_command.aligned:
-                self.phase = 'aligning'
-                self.active_controller_name = 'alignment_turn'
+                self._set_phase(
+                    'aligning',
+                    controller_name='alignment_turn',
+                    detail=f'Preparing segment {self.current_index}->{self.current_index + 1}',
+                )
                 self._publish_twist(0.0, turn_command.angular_velocity)
-                self._publish_debug({
-                    'heading_error': turn_command.heading_error,
-                    'cmd_w': turn_command.angular_velocity,
-                })
+                self._publish_debug(self._build_debug_snapshot(turn_command=turn_command))
                 self._log_control_sample(turn_command=turn_command)
+                self._maybe_log_runtime_status(turn_command=turn_command)
                 return
 
             self.segment_aligned = True
             self.controller.reset()
-            self.phase = 'tracking'
+            self._set_phase('tracking', controller_name=self.selected_controller_type)
             self.get_logger().info(f'Alignment complete for waypoint segment {self.current_index} -> {self.current_index + 1}')
+            self._terminal_info(
+                'Alignment complete | '
+                f'wp={self.current_index}->{self.current_index + 1} | '
+                f'heading_error={math.degrees(turn_command.heading_error):.2f} deg',
+                level='normal',
+            )
 
         try:
             tracking_command = self.controller.compute_command(self.current_route, self.pose)
             self.active_controller_name = getattr(self.controller, 'active_controller_name', self.selected_controller_type)
         except ValueError as exc:
-            self.phase = 'control_error'
-            self.active_controller_name = 'control_error'
+            self._set_phase('control_error', controller_name='control_error')
             self._publish_stop()
             self.get_logger().error(str(exc))
-            self._publish_debug({'reason': 'control_error', 'message': str(exc)})
+            self.get_logger().warn(
+                'Control error triggered a stop | '
+                f'wp={self.current_index}->{self.current_index + 1} | '
+                f'pose=({self.pose[0]:.2f}, {self.pose[1]:.2f}, {math.degrees(self.pose[2]):.2f} deg)'
+            )
+            self._publish_debug({
+                'reason': 'control_error',
+                'message': str(exc),
+                **self._build_debug_snapshot(error_message=str(exc)),
+            })
+            self._log_control_sample(error_message=str(exc))
             return
 
         self._publish_twist(tracking_command.linear_velocity, tracking_command.angular_velocity)
-        self._publish_debug({
-            'heading_error': tracking_command.heading_error,
-            'cross_track_error': tracking_command.cross_track_error,
-            'dist_to_goal': tracking_command.dist_to_goal,
-            'cmd_v': tracking_command.linear_velocity,
-            'cmd_w': tracking_command.angular_velocity,
-        })
+        self._publish_debug(self._build_debug_snapshot(tracking_command=tracking_command))
         self._log_control_sample(tracking_command=tracking_command)
+        self._maybe_log_runtime_status(tracking_command=tracking_command)
 
         if is_goal_reached(self.current_route, self.pose, self.tracking_config.goal_threshold):
             self.get_logger().info(f'Reached waypoint {self.current_index + 1}')
+            self._terminal_info(
+                'Reached waypoint | '
+                f'wp={self.current_index + 1} | '
+                f'pose=({self.pose[0]:.2f}, {self.pose[1]:.2f}) | '
+                f'dist_to_goal={tracking_command.dist_to_goal:.2f} m',
+                level='normal',
+            )
             self.current_index += 1
             self.segment_aligned = False
-            self.phase = 'aligning'
+            self._set_phase('aligning', controller_name='alignment_turn', detail='Switching to next segment.')
             self.controller.reset()
             self.update_status_file()
 
@@ -497,6 +670,10 @@ class WaypointFollower(Node):
 
         if self.last_odom_warn_time is None or (self.get_clock().now() - self.last_odom_warn_time).nanoseconds > int(2e9):
             self.get_logger().warn(f'/robot/odom is stale ({odom_age:.2f}s); publishing stop until pose updates resume.')
+            self._terminal_info(
+                f'Safety stop | stale /robot/odom for {odom_age:.2f}s (limit {self.max_odom_age_sec:.2f}s)',
+                level='normal',
+            )
             self.last_odom_warn_time = self.get_clock().now()
         return False
 
@@ -542,21 +719,61 @@ class WaypointFollower(Node):
 
         self.debug_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
 
-    def _log_control_sample(self, tracking_command: TrackingCommand | None = None, turn_command: TurnCommand | None = None):
-        if self.csv_log_writer is None or self.current_route is None or self.pose is None:
-            return
+    def _build_debug_snapshot(
+        self,
+        tracking_command: TrackingCommand | None = None,
+        turn_command: TurnCommand | None = None,
+        error_message: str | None = None,
+    ) -> dict:
+        payload = {
+            'phase': self.phase,
+            'controller': self.active_controller_name if error_message is None else f'{self.active_controller_name}:{error_message}',
+            'waypoint_index': self.current_index,
+        }
 
-        target_x, target_y = self.current_route[1]
-        heading_error = 0.0
-        cross_track_error = 0.0
-        dist_to_goal = 0.0
+        if self.pose is not None:
+            payload.update({
+                'x': round(self.pose[0], 3),
+                'y': round(self.pose[1], 3),
+                'yaw_deg': round(math.degrees(self.pose[2]), 2),
+            })
+
+        if self.current_route is not None:
+            metrics = compute_segment_metrics(self.current_route, self.pose if self.pose is not None else [0.0, 0.0, 0.0])
+            start_x, start_y = self.current_route[0]
+            target_x, target_y = self.current_route[1]
+            payload.update({
+                'segment_start_x': round(start_x, 3),
+                'segment_start_y': round(start_y, 3),
+                'path_heading_deg': round(math.degrees(metrics.path_angle), 2),
+                'segment_length_m': round(metrics.segment_length, 3),
+                'target_x': round(target_x, 3),
+                'target_y': round(target_y, 3),
+            })
+
+        heading_error = None
+        cross_track_error = None
+        dist_to_goal = None
+        dist_from_start = None
+        target_speed = 0.0
+        lateral_speed = 0.0
         cmd_v = 0.0
         cmd_w = 0.0
+
+        if self.current_route is not None and self.pose is not None:
+            metrics = compute_segment_metrics(self.current_route, self.pose)
+            heading_error = metrics.heading_error
+            cross_track_error = metrics.cross_track_error
+            dist_to_goal = metrics.dist_to_goal
+            dist_from_start = metrics.dist_from_start
 
         if tracking_command is not None:
             heading_error = tracking_command.heading_error
             cross_track_error = tracking_command.cross_track_error
             dist_to_goal = tracking_command.dist_to_goal
+            dist_from_start = tracking_command.dist_from_start
+            target_speed = tracking_command.target_speed
+            lateral_speed = tracking_command.lateral_speed
             cmd_v = tracking_command.linear_velocity
             cmd_w = tracking_command.angular_velocity
 
@@ -564,21 +781,60 @@ class WaypointFollower(Node):
             heading_error = turn_command.heading_error
             cmd_w = turn_command.angular_velocity
 
+        if heading_error is not None:
+            payload['heading_error_deg'] = round(math.degrees(heading_error), 2)
+        if cross_track_error is not None:
+            payload['cross_track_error_m'] = round(cross_track_error, 3)
+        if dist_to_goal is not None:
+            payload['dist_to_goal_m'] = round(dist_to_goal, 3)
+        if dist_from_start is not None:
+            payload['dist_from_start_m'] = round(dist_from_start, 3)
+
+        payload.update({
+            'target_speed_mps': round(target_speed, 3),
+            'lateral_speed_mps': round(lateral_speed, 3),
+            'cmd_v': round(cmd_v, 3),
+            'cmd_w': round(cmd_w, 3),
+        })
+
+        return payload
+
+    def _log_control_sample(
+        self,
+        tracking_command: TrackingCommand | None = None,
+        turn_command: TurnCommand | None = None,
+        error_message: str | None = None,
+    ):
+        if self.csv_log_writer is None or self.current_route is None or self.pose is None:
+            return
+        snapshot = self._build_debug_snapshot(
+            tracking_command=tracking_command,
+            turn_command=turn_command,
+            error_message=error_message,
+        )
+
         self.csv_log_writer.writerow([
             round(self.get_clock().now().nanoseconds / 1e9, 3),
-            self.phase,
-            self.active_controller_name,
-            self.current_index,
-            round(self.pose[0], 3),
-            round(self.pose[1], 3),
-            round(math.degrees(self.pose[2]), 2),
-            round(target_x, 3),
-            round(target_y, 3),
-            round(math.degrees(heading_error), 2),
-            round(cross_track_error, 3),
-            round(dist_to_goal, 3),
-            round(cmd_v, 3),
-            round(cmd_w, 3),
+            snapshot['phase'],
+            snapshot['controller'],
+            snapshot['waypoint_index'],
+            snapshot.get('segment_start_x', 0.0),
+            snapshot.get('segment_start_y', 0.0),
+            snapshot.get('x', 0.0),
+            snapshot.get('y', 0.0),
+            snapshot.get('yaw_deg', 0.0),
+            snapshot.get('path_heading_deg', 0.0),
+            snapshot.get('segment_length_m', 0.0),
+            snapshot.get('target_x', 0.0),
+            snapshot.get('target_y', 0.0),
+            snapshot.get('heading_error_deg', 0.0),
+            snapshot.get('cross_track_error_m', 0.0),
+            snapshot.get('dist_to_goal_m', 0.0),
+            snapshot.get('dist_from_start_m', 0.0),
+            snapshot.get('target_speed_mps', 0.0),
+            snapshot.get('lateral_speed_mps', 0.0),
+            snapshot.get('cmd_v', 0.0),
+            snapshot.get('cmd_w', 0.0),
         ])
 
     def flush_log_file(self):

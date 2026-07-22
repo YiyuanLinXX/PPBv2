@@ -6,6 +6,11 @@
     # enable_csv_logging: whether to save per-cycle controller logs to CSV.
     # publish_debug: whether to publish structured controller debug messages on /nav/controller_debug.
     # debug_publish_period_sec: minimum interval between debug publishes in seconds.
+    # terminal_status_enabled: whether to print runtime status updates in the terminal.
+    # terminal_status_level: terminal verbosity level, one of silent, normal, verbose, debug.
+    # terminal_status_period_sec: minimum interval between periodic terminal status updates.
+    # terminal_show_alignment_details: whether to periodically print alignment details in terminal.
+    # terminal_show_tracking_details: whether to periodically print tracking details in terminal.
     # log_directory: directory used for resume snapshots and optional controller logs.
     # status_path: file storing the current reached waypoint index for resume logic.
     # last_waypoints_path: snapshot of the last waypoint file used for resume.
@@ -18,27 +23,38 @@
     # alignment_threshold: heading threshold in radians before linear tracking begins.
     control_frequency: 10.0
     max_odom_age_sec: 0.25
-    enable_csv_logging: false
-    publish_debug: false
+    enable_csv_logging: true
+    publish_debug: true
     debug_publish_period_sec: 0.2
+    terminal_status_enabled: true
+    terminal_status_level: normal
+    terminal_status_period_sec: 1.5
+    terminal_show_alignment_details: false
+    terminal_show_tracking_details: false
     log_directory: /home/cairlab/navigation_waypoints
     status_path: /home/cairlab/navigation_waypoints/status.txt
     last_waypoints_path: /home/cairlab/navigation_waypoints/last_waypoints.csv
     controller_type: pid_line # options: pid_line, pure_pursuit, mpc_rollout, mpc_formal, row_hybrid
-    target_speed: 1.2
-    max_angular_speed: 0.8
-    min_forward_ratio: 0.7
+    target_speed: 1.0
+    max_angular_speed: 0.65
+    min_forward_ratio: 0.2
     max_cross_track_error: 1.0
     goal_threshold: 0.30
-    alignment_threshold: 0.14
+    alignment_threshold: 0.10
 
     # Alignment turn controller parameters.
     # turn_gain: proportional gain for in-place alignment.
     # turn_min_speed: minimum angular speed during alignment in rad/s.
     # turn_max_speed: maximum angular speed during alignment in rad/s.
-    turn_gain: 0.8
-    turn_min_speed: 0.2
-    turn_max_speed: 0.8
+    # turn_enable_slowdown_near_target: whether to taper the minimum turn speed near alignment.
+    # turn_slowdown_angle: heading error in radians below which the minimum turn speed tapers down.
+    # turn_near_target_min_speed_ratio: fraction of turn_min_speed allowed near alignment_threshold.
+    turn_gain: 1.0
+    turn_min_speed: 0.3
+    turn_max_speed: 0.5
+    turn_enable_slowdown_near_target: false
+    turn_slowdown_angle: 0.35
+    turn_near_target_min_speed_ratio: 0.35
 
 
     #################################################################
@@ -56,16 +72,16 @@
     # initial_speed_ratio: minimum speed ratio used during the initial ramp-up stage.
     # stop_speed_ratio: minimum speed ratio used near the goal.
     # regulate_target_speed: whether to dynamically reduce target_speed according to error geometry.
-    max_lateral_speed: 0.5
+    max_lateral_speed: 0.4
     epsilon: 0.5
-    pid_kp: 0.4
-    pid_ki: 0.05
-    pid_kd: 0.4
-    heading_gain: 1.2
-    max_heading_for_full_speed: 0.45
-    dist_start_threshold: 1.0
+    pid_kp: 0.45
+    pid_ki: 0.00
+    pid_kd: 0.20
+    heading_gain: 1.35
+    max_heading_for_full_speed: 0.35
+    dist_start_threshold: 2.0
     dist_stop_threshold: 1.0
-    initial_speed_ratio: 0.2
+    initial_speed_ratio: 0.5
     stop_speed_ratio: 0.0
     regulate_target_speed: true
 

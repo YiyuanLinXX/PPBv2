@@ -81,7 +81,7 @@ class AmigaCom(Node):
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--port',      type=str,
-                        default='/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_26CD336C48364C5320202054142F0DFF-if00',
+                        default='/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_F6FF0DE648364C53202020542C1B0DFF-if00',
                         help='Serial port for MCU communication')
     parser.add_argument('--baudrate',  type=int, default=115200,
                         help='Baudrate for the serial port')

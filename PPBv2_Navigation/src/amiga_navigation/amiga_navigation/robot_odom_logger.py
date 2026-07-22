@@ -9,6 +9,7 @@ import csv
 import math
 import tf_transformations
 import datetime
+from pathlib import Path
 
 def quaternion_to_yaw(qx, qy, qz, qw):
     """Convert quaternion to yaw in degrees."""
@@ -19,14 +20,17 @@ class OdometryLoggerNode(Node):
     def __init__(self):
         super().__init__('robot_odom_logger')
         self.get_logger().info("Starting robot_odom logger")
+        self.declare_parameter('log_directory', '/home/cairlab/robot_nav_debug_log')
+        self.log_directory = Path(str(self.get_parameter('log_directory').value))
+        self.log_directory.mkdir(parents=True, exist_ok=True)
 
         # Generate a timestamped filename
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'robot_odom_log_{now_str}.csv'
-        self.get_logger().info(f"Logging to file: {filename}")
+        self.log_path = self.log_directory / f'robot_odom_log_{now_str}.csv'
+        self.get_logger().info(f"Logging to file: {self.log_path}")
 
         # Open CSV file for writing
-        self.csv_file = open(filename, mode='w', newline='')
+        self.csv_file = self.log_path.open(mode='w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow(['timestamp', 'x', 'y', 'z', 'yaw_deg'])
 

@@ -12,6 +12,7 @@ from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from pyproj import Transformer
 
+
 class GpsToEnuOdometryNode(Node):
     def __init__(self):
         super().__init__('gnss2enu_odometry')
@@ -20,7 +21,6 @@ class GpsToEnuOdometryNode(Node):
         self.imu_topic = self.get_parameter('imu_topic').get_parameter_value().string_value
         self.max_imu_age_sec = self.get_parameter('max_imu_age_sec').get_parameter_value().double_value
 
-        # Datum and transformer
         self.datum_received = False
         self.datum_lat = 0.0
         self.datum_lon = 0.0
@@ -32,10 +32,8 @@ class GpsToEnuOdometryNode(Node):
         self.last_warn_missing_imu = None
         self.last_warn_missing_datum = None
 
-        # Publisher
         self.odom_pub = self.create_publisher(Odometry, '/robot/odom', 10)
 
-        # Datum subscriber
         datum_qos = QoSProfile(
             depth=1,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL
@@ -45,7 +43,7 @@ class GpsToEnuOdometryNode(Node):
         self.create_subscription(NavSatFix, '/gps/fix', self.gps_callback, qos_profile_sensor_data)
 
         self.get_logger().info(
-            f"gnss2enu_odometry started. GNSS fixes will use latest IMU from {self.imu_topic}."
+            f"gnss2enu_odometry started. Publishing /robot/odom with latest IMU from {self.imu_topic}."
         )
 
     def datum_callback(self, msg):
@@ -84,7 +82,6 @@ class GpsToEnuOdometryNode(Node):
             )
             return
 
-        # === Convert GPS to ENU ===
         lon = gps_msg.longitude
         lat = gps_msg.latitude
         alt = gps_msg.altitude
@@ -92,11 +89,9 @@ class GpsToEnuOdometryNode(Node):
         east, north = self.transformer.transform(lon, lat)
         z = alt - self.datum_alt
 
-        # === Extract yaw from IMU ===
         q = imu_msg.orientation
         _, _, yaw = euler_from_quaternion([q.x, q.y, q.z, q.w])
 
-        # === Construct Odometry ===
         odom_msg = Odometry()
         odom_msg.header.stamp = gps_msg.header.stamp
         odom_msg.header.frame_id = 'map'
@@ -112,7 +107,6 @@ class GpsToEnuOdometryNode(Node):
         odom_msg.pose.pose.orientation.z = qz
         odom_msg.pose.pose.orientation.w = qw
 
-        # Pose covariance (optional)
         odom_msg.pose.covariance = [
             0.0004, 0.0,    0.0,    0.0,    0.0,    0.0,
             0.0,    0.0004, 0.0,    0.0,    0.0,    0.0,
@@ -141,12 +135,12 @@ class GpsToEnuOdometryNode(Node):
             setattr(self, f'last_warn_{key}', now)
 
     def yaw_to_quaternion(self, yaw):
-        """Convert yaw to quaternion [x, y, z, w]"""
         qx = 0.0
         qy = 0.0
         qz = math.sin(yaw / 2.0)
         qw = math.cos(yaw / 2.0)
         return [qx, qy, qz, qw]
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -158,6 +152,7 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

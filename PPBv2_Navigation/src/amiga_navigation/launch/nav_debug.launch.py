@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Launch the base navigation stack plus all debug logging nodes.
+"""Launch the base navigation stack plus one combined debug CSV logger.
 
 This debug launch intentionally does not start ``waypoint_follower``.
 Run the follower separately in another terminal so the waypoint file and
@@ -16,6 +16,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
+
 def generate_launch_description():
     pkg = get_package_share_directory('amiga_navigation')
 
@@ -25,22 +26,14 @@ def generate_launch_description():
         )
     )
 
-    localization_logger = Node(
+    nav_topic_debug_logger = Node(
         package='amiga_navigation',
-        executable='localization_logger',
-        name='localization_logger',
-        output='screen'
-    )
-
-    robot_odom_logger = Node(
-        package='amiga_navigation',
-        executable='robot_odom_logger',
-        name='robot_odom_logger',
+        executable='nav_topic_debug_logger',
+        name='nav_topic_debug_logger',
         output='screen'
     )
 
     return LaunchDescription([
         base_bringup,
-        localization_logger,
-        robot_odom_logger,
+        nav_topic_debug_logger,
     ])
