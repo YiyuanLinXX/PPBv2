@@ -6,7 +6,7 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026.
 
 ## Overview
 
-This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with an Emlid Reach RS3 GNSS receiver, a Witmotion IMU, and an Adafruit Feather M4 CAN microcontroller.
+This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with an Emlid Reach RS3 GNSS receiver, a Witmotion IMU HWT 905, and an Adafruit Feather M4 CAN microcontroller.
 
 The package supports multiple waypoint tracking controllers:
 
@@ -16,7 +16,7 @@ The package supports multiple waypoint tracking controllers:
 - `mpc_formal`: optimization-based receding-horizon MPC tracker.
 - `row_hybrid`: segment-length-aware hybrid controller for row navigation. It uses formal MPC for short connectors, pure pursuit for medium segments, and PID line tracking for long row segments.
 
-<img src="../assets/nav_diagram.png" alt="nav_diagram" style="zoom: 25%;" />
+<img src="../assets/overview.png" alt="nav_diagram"  />
 
 
 
