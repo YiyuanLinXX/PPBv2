@@ -1,8 +1,6 @@
 # PPBv2 Imaging
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 10, 2025
-
-(need to update!)
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026
 
 ---
 
@@ -59,37 +57,37 @@ This is the ROS 2 package for synchronized multi-camera image triggering, GPS da
    ```
 
    To stop data acquisition at any time (e.g. when complete or in an emergency), press `CTRL+C` in the terminal that is running the DAQ command.
-
-| Parameter       | Type   | Default        | Description                     |
-| --------------- | ------ | -------------- | ------------------------------- |
-| `output_dir`    | string | `/tmp`         | Where images and CSVs are saved |
-| `arduino_port`  | string | `/dev/ttyACM0` | Serial port for Arduino         |
-| `arduino_baud`  | int    | `9600`         | Baudrate for Arduino            |
-| `exposure_time` | float  | `400.0`        | Camera exposure in µs           |
-| `gain`          | float  | `5.0`          | Manual gain (dB)                |
-| `wb_red`        | float  | `1.34`         | White balance red ratio         |
-| `wb_blue`       | float  | `2.98`         | White balance blue ratio        |
-| `gps_port`      | string | `/dev/ttyUSB0` | Serial port for GPS receiver    |
-| `gps_baud`      | int    | `115200`       | Baudrate for GPS receiver       |
-
-
+   
+   | Parameter       | Type   | Default        | Description                     |
+   | --------------- | ------ | -------------- | ------------------------------- |
+   | `output_dir`    | string | `/tmp`         | Where images and CSVs are saved |
+   | `arduino_port`  | string | `/dev/ttyACM0` | Serial port for Arduino         |
+   | `arduino_baud`  | int    | `9600`         | Baudrate for Arduino            |
+   | `exposure_time` | float  | `400.0`        | Camera exposure in µs           |
+   | `gain`          | float  | `5.0`          | Manual gain (dB)                |
+   | `wb_red`        | float  | `1.34`         | White balance red ratio         |
+   | `wb_blue`       | float  | `2.98`         | White balance blue ratio        |
+   | `gps_port`      | string | `/dev/ttyUSB0` | Serial port for GPS receiver    |
+   | `gps_baud`      | int    | `115200`       | Baudrate for GPS receiver       |
+   
+   
 
 ## Output Format
 
 - Each camera will produce a folder:
 
-```bash
-output_dir/
-└── <camera_1_serial>/
-    ├── 000001.pgm
-    ├── 000002.pgm
-    └── Timestamp_GPS.csv  # Per-frame log
-└── <camera_1_serial>/
-    ├── 000001.pgm
-    ├── 000002.pgm
-    └── Timestamp_GPS.csv
-└── gps_log.csv
-```
+  ```bash
+  output_dir/
+  └── <camera_1_serial>/
+      ├── 000001.pgm
+      ├── 000002.pgm
+      └── Timestamp_GPS.csv  # Per-frame log
+  └── <camera_1_serial>/
+      ├── 000001.pgm
+      ├── 000002.pgm
+      └── Timestamp_GPS.csv
+  └── gps_log.csv
+  ```
 
 - Timestamp_GPS.csv columns
 
@@ -139,8 +137,6 @@ For any questions or uncertainty, please contact Yiyuan Lin (yl3663@cornell.edu)
 ```bash
 cairlab@ubuntu:~$ bash PPBv2_Imaging.bash 
 Enter output folder name in the format Vineyard_YYYYMMDD_HHMM(e.g., Oblock_20250617_0914): Demo_20250630_1917 # Enter your desired folder name for data collection here
-
-
 
 Save Directory: /media/Data/cairlab/Demo_20250630_1917
 Launching gps_publisher...

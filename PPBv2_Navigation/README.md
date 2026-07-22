@@ -1,27 +1,32 @@
-# Amiga_Navigation
+# PPBv2 Amiga Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Mar 10, 2026
-(Need to update!)
----
-
-
-
-This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga robot with Emlid Reach RS3 GNSS receiver. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy. 
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026.
 
 
 
 ## Overview
 
-![nav_diagram](../assets/nav_diagram.png)
+This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with an Emlid Reach RS3 GNSS receiver, a Witmotion IMU, and an Adafruit Feather M4 CAN microcontroller.
+
+The package supports multiple waypoint tracking controllers:
+
+- `pid_line`: PID cross-track-error line tracker.
+- `pure_pursuit`: geometric pure pursuit tracker.
+- `mpc_rollout`: sampling-based rollout MPC tracker.
+- `mpc_formal`: optimization-based receding-horizon MPC tracker.
+- `row_hybrid`: segment-length-aware hybrid controller for row navigation. It uses formal MPC for short connectors, pure pursuit for medium segments, and PID line tracking for long row segments.
+
+<img src="../assets/nav_diagram.png" alt="nav_diagram" style="zoom: 25%;" />
 
 
 
 ## Hardware
 
-1. Farm-ng Amiga robot
-2. Emlid Reach RS3 GNSS receiver
-3. Raspberry Pi 5
-4. Adafruit Feather M4 CAN micro controller
+- [Farm-ng Amiga robot](https://store.farm-ng.com/)
+- [Emlid Reach RS3 GNSS receiver](https://emlid.com/reachrs3/)
+- [Witmotion IMU HWT905](https://www.wit-motion.com/index.php/HighprecisionTilt/39.html)
+- [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
+- [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview)
 
 
 
@@ -31,123 +36,320 @@ This is the ROS 2 package for GPS waypoint based navigation on Farm-ng Amiga rob
 
 2. Install ROS2 Jazzy on Raspberry Pi 5 (Ubuntu) following the official [instruction](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
 
-3. Install necessary Python packages by running
+3. Install necessary ROS2 packages and Python tools
 
    ```bash
-   pip install pyserial numpy simple-pid pynmea2 pyproj
+   sudo apt install \
+     python3-colcon-common-extensions \
+     python3-pip \
+     python3-setuptools \
+     ros-jazzy-geographic-msgs \
+     ros-jazzy-tf-transformations \
+     ros-jazzy-twist-mux
+   ```
+
+4. Install necessary Python packages by running
+
+   ```bash
+   pip install pyserial numpy scipy simple-pid pynmea2 pyproj witmotion
    ```
 
    If you're on a Debian/Ubuntu system with a managed Python environment, , you may need to add the `--break-system-packages` flag:
 
    ```bash
-   pip install --break-system-packages pyserial numpy simple-pid pynmea2 pyproj
+   pip install --break-system-packages pyserial numpy simple-pid pynmea2 pyproj witmotion
    ```
 
    Or, to avoid conflicts, you can use a virtual environment.
+
+5. Build and source the ROS 2 navigation workspace:
+
+   ```bash
+   cd PPBv2_Navigation  # The workspace root directory containing the src folder
+   colcon build
+   source install/setup.bash
+   ```
+
+   When opening a new terminal, source both the ROS 2 environment and the workspace before running any nodes:
+
+   ```bash
+   source /opt/ros/jazzy/setup.bash
+   cd /path/to/PPBv2_Navigation
+   source install/setup.bash
+   ```
+
+   Optionally, add these commands to `~/.bashrc` to source them automatically in each new terminal:
+
+   ```bash
+   echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+   echo "source /path/to/PPBv2_Navigation/install/setup.bash" >> ~/.bashrc
+   source ~/.bashrc
+   ```
 
 
 
 ## Getting Start
 
-1. Edit the devices, port, parameters to your own setup.
+1. **Configure hardware ports**
+
+   Before running on the robot, update the serial device paths in:
+
+   - `src/amiga_navigation/launch/basic_bringup.launch.py`
+   - `src/amiga_navigation/amiga_navigation/gnss_publisher.py`, if you want to change the default GNSS port.
+   - `src/amiga_navigation/amiga_navigation/amiga_serial_bridge.py`, if you want to change the default Feather M4 port.
+
+   The current launch file uses `/dev/serial/by-id/...` paths for the Emlid Reach RS3 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
 
 
-2. log the waypoint for navigation
-
-   ```bash
-   ros2 launch amiga_navigation basic_bringup.launch.py
-   ```
-   
-   Open another terminal and execute
-   
-   ```bash
-   ros2 run amiga_navigation gps_waypoint_logger_keyboard
-   ```
-   
-   
-
-3. Execute the waypoints based navigation by running
+2. **Start the base stack without waypoint following**
 
    ```bash
    ros2 launch amiga_navigation basic_bringup.launch.py
    ```
 
-   Open another terminal and execute
-   
+   For debug logging, use:
+
    ```bash
-   cd amiga_navigation
-   python3 src/amiga_navigation/amiga_navigation/logged_waypoint_follower.py --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv
+   ros2 launch amiga_navigation nav_debug.launch.py
    ```
 
+   This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
+
+   
+
+3. **Record the waypoints for navigation (Optional)**
+
+   If the base stack is not already running, launch it with:
+
+   ```bash
+   ros2 launch amiga_navigation basic_bringup.launch.py
+   ```
+
+   Then start the GNSS waypoint logger:
+
+   ```bash
+   ros2 run amiga_navigation gnss_waypoint_keyboard_logger
+   ```
+
+   Controls:
+
+   - Press `SPACE` to save the current GNSS fix as a waypoint.
+   - Press `q` or `CTRL+C` to quit.
+
+   By default, waypoint files are saved in:
+
+   ```text
+   /home/cairlab/navigation_waypoints
+   ```
+
+   The logger generates the following files:
+
+   - `latest_waypoints.csv`: Contains the most recently recorded waypoint sequence and is overwritten each time the logger is used.
+   - `waypoints_YYYY_MM_DD_HH_MM_SS.csv`: A timestamped historical copy. A custom filename may also be provided when saving a snapshot.
+
+   Waypoint CSV format:
+
+   ```csv
+   latitude,longitude
+   42.000000,-76.000000
+   42.000010,-76.000005.
+   ```
+
+   > [!NOTE]
+   >
+   > Waypoints may also be generated using GIS-based tools or any other preferred waypoint collection method. For consistent RTK positioning, ensure that the waypoints are collected using corrections from the same RTK base station used by the robot's GNSS receiver.
+
+   
+
+4. **Run waypoints based navigation**
+
+   If the base stack is not already running, launch it with:
+
+   ```bash
+   ros2 launch amiga_navigation basic_bringup.launch.py
+   ```
+
+   In another terminal, run the waypoint follower:
+
+   ```bash
+   ros2 run amiga_navigation waypoint_follower --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv #replace with your waypoint file path
+   ```
+
+   The follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.
+
+   To choose a controller from the command line:
+
+   ```bash
+   ros2 run amiga_navigation waypoint_follower \
+     --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv \
+     --controller pid_line
+   ```
+
+   Valid controller choices are:
+
+   ```text
+   pid_line
+   pure_pursuit
+   mpc_rollout
+   mpc_formal
+   row_hybrid
+   ```
+
+   The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
+
+   The waypoint follower stores navigation progress in:
+
+   ```text
+   /home/cairlab/navigation_waypoints/status.txt
+   /home/cairlab/navigation_waypoints/last_waypoints.csv
+   ```
+
+   **The resume mode can be selected with:**
+
+   ```bash
+   ros2 run amiga_navigation waypoint_follower --resume ask
+   ros2 run amiga_navigation waypoint_follower --resume yes
+   ros2 run amiga_navigation waypoint_follower --resume no
+   ```
+
+   `--resume` can be combined with `--waypoints` and `--controller` in the same command.
+
+   - `ask`: prompt in an interactive terminal when unfinished navigation is found.
+   - `yes`: automatically continue from `last_waypoints.csv`.
+   - `no`: ignore previous progress and start from the requested waypoint file.
 
 
-## PID Controller for Line Tracking
 
-We use a **PID controller** to minimize the **cross-track error**, which is the signed distance between the robot and the planned path segment. The controller adjusts the robot's lateral velocity (`v_y_l`) perpendicular to the path, enabling smooth and accurate line tracking.
+## Controller Configuration
+
+The waypoint follower converts GPS waypoints from `(latitude, longitude)` into a local ENU frame using the first RTK-fixed GPS point as the datum. For each segment from $p_i$ to $p_{i+1}$, it computes the reference heading $\psi_{ref}$, robot heading $\psi$, signed cross-track error $e_y$, and heading error $e_\psi$.
 
 <p align="center">
   <img src="../assets/error_define.png" width="50%" />
 </p>
 
-The PID controller computes correction as:
+Before tracking each segment, `alignment_turn_controller.py` rotates the robot in place until $|e_\psi|$ is below `alignment_threshold`. The selected tracking controller then publishes velocity commands to `/cmd_vel_nav`.
+
+Controller behavior:
+
+| Controller | Description | Good for |
+| --- | --- | --- |
+| `pid_line` | PID feedback on signed cross-track error. | Long, straight row segments. |
+| `pure_pursuit` | Steers toward a lookahead point on the segment. | Smooth waypoint paths with simple tuning. |
+| `mpc_rollout` | Samples candidate commands and chooses the lowest-cost rollout. | MPC-like behavior with predictable runtime. |
+| `mpc_formal` | Solves a receding-horizon optimization problem with SciPy SLSQP. | Short connectors or tighter maneuvers. |
+| `row_hybrid` | Switches between `mpc_formal`, `pure_pursuit`, and `pid_line` by segment length. | Routes with both long crop rows and short connectors. |
+
+For `pid_line`, the lateral correction speed is:
 
 $$
-v_{y_l} = K_p \cdot e(t) + K_i \cdot \int e(t)\,dt + K_d \cdot \frac{d}{dt} e(t)
+v_{y,l} = K_p e_y(t) + K_i \int e_y(t)\,dt + K_d \frac{d e_y(t)}{dt}
 $$
 
+The follower combines this lateral correction with forward path speed, converts it into differential-drive commands, and adds heading correction through `heading_gain`.
 
-Where:
+| Parameter | Increase to... | Decrease to... |
+| --- | --- | --- |
+| `pid_kp` | Correct lateral error faster. | Reduce overshoot or left-right oscillation. |
+| `pid_ki` | Remove steady drift to one side. | Reduce slow oscillation or integral wind-up. |
+| `pid_kd` | Dampen oscillation and smooth correction. | Make the response less sluggish. |
+| `heading_gain` | Align the robot heading more aggressively with the path. | Reduce heading-induced oscillation. |
 
-- $e(t)$ is the cross-track error at time ttt
-- $K_P$ (proportional gain): corrects based on the current error
-- $K_i$ (integral gain): corrects accumulated past errors
-- $K_d$ (derivative gain): predicts future error based on rate of change
+> [!IMPORTANT]
+>
+> All controller parameters are centralized in:
+>
+> ```bash
+> src/amiga_navigation/config/waypoint_follower_params.yaml
+> ```
+>
+> Important shared parameters:
+>
+> - `control_frequency`
+> - `max_odom_age_sec`
+> - `controller_type`
+> - `target_speed`
+> - `max_angular_speed`
+> - `min_forward_ratio`
+> - `max_cross_track_error`
+> - `goal_threshold`
+> - `alignment_threshold`
+>
+> Controller-specific parameter names are grouped in the same YAML file by prefix, such as `pid_*`, `pure_pursuit_*`, `mpc_*`, `formal_mpc_*`, and `row_*`.
 
-The computed lateral velocity is rotated to the world frame and combined with a forward velocity (`v_x_l`) to generate robot motion commands (`v`, `w`) using a differential drive model.
 
-You can tune the PID parameters in `/amiga_navigation/utils/linear_drive.py`:
 
-```python
-class LineTrackingController:
-    """Controller for tracking a line path using PID control."""
-    
-    def __init__(
-        self,
-        text_publisher,
-        v_x_l: float = 1.3,
-        v_y_l_max: float = 0.5,
-        epsilon: float = 0.5,
-        kp: float = 0.4,  # P, Proportional
-        ki: float = 0.05, # I, Integral
-        kd: float = 0.4,  # D, Derivative
-        regulate_v_x_l: bool = False,
-        is_turning: bool = False
-    ):
+## Logging and Debugging
+
+The follower can publish structured debug messages on:
+
+```text
+/nav/controller_debug
+```
+
+Inspect them with:
+
+```bash
+ros2 topic echo /nav/controller_debug
+```
+
+When `enable_csv_logging` is true, the follower writes per-cycle control logs to:
+
+```text
+/home/cairlab/navigation_waypoints/waypoint_control_log_<timestamp>.csv
+```
+
+The CSV log includes phase, active controller, waypoint index, pose, heading error, cross-track error, distance to goal, target speed, and command velocity.
+
+Useful runtime checks:
+
+```bash
+ros2 topic echo /gps/fix
+ros2 topic echo /gps/rtk_status_flag
+ros2 topic echo /imu
+ros2 topic echo /robot/odom
+ros2 topic echo /cmd_vel_nav
+ros2 topic echo /cmd_vel_out
 ```
 
 
 
-### PID Parameter Tuning Guide
+## Feather M4 MCU
 
-| Parameter           | Effect                      | Increase to...                                              | Decrease to...                                   |
-| ------------------- | --------------------------- | ----------------------------------------------------------- | ------------------------------------------------ |
-| `Kp` (Proportional) | Reacts to current error     | Respond faster, reduce large deviations                     | Reduce overshooting or oscillation               |
-| `Ki` (Integral)     | Accumulates long-term error | Eliminate steady-state drift (e.g., always off to one side) | Prevent slow oscillation or integral wind-up     |
-| `Kd` (Derivative)   | Predicts future error       | Dampen oscillations and improve stability                   | Increase responsiveness if system feels sluggish |
+The `FeatherM4_MCU/code.py` script receives serial velocity commands from the Raspberry Pi and sends Amiga CAN control commands.
 
-### Quick Behavior-based Tuning Reference
+Upload `FeatherM4_MCU/code.py` to the Feather M4 CAN microcontroller following the Farm-ng MCU kit documentation:
 
-| Robot Behavior                            | Suggested Adjustment                        |
-| ----------------------------------------- | ------------------------------------------- |
-| Drifts slowly back to path                | **Increase `Kp`**                           |
-| Quickly overshoots and wobbles left-right | **Decrease `Kp`, Increase `Kd`**            |
-| Always off to one side                    | **Increase `Ki`**                           |
-| Too sluggish in correction                | **Increase `Kp`, optionally decrease `Kd`** |
-| Mild, slow oscillation                    | **Decrease `Ki`, Increase `Kd`**            |
+```text
+https://amiga.farm-ng.com/docs/mcu_kit/
+```
+
+The ROS-side serial bridge sends commands in this format:
+
+```text
+linear_velocity,angular_velocity
+```
+
+Example:
+
+```text
+0.500000,0.100000
+```
+
+
+
+## Safety Notes
+
+- Confirm the Amiga is in the correct autonomous-ready state before sending navigation commands.
+- Verify RTK fixed status before logging or following waypoints. The robot will stop once RTK FIX is lost.
+- Start with low `target_speed` when testing a new field, new waypoint route, or new controller.
+- Keep `max_cross_track_error` conservative. The waypoint follower stops if cross-track error exceeds this limit.
+- The serial bridge has a watchdog that sends a stop command if `/cmd_vel_out` stops updating.
+- Always test controller changes in an open area before running between rows.
 
 
 
 ## Maintenance
 
-For any questions or uncertainty, please contact Yiyuan Lin ([yl3663@cornell.edu](mailto:yl3663@cornell.edu)).
+For questions, contact Yiyuan Lin at yl3663@cornell.edu.

@@ -1,6 +1,6 @@
 # PPBv2
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Apr 8, 2026
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026
 
 ---
 
@@ -13,13 +13,15 @@ This repository includes the codebase for our phenotyping robot PhytoPatholoBot 
 ## PPBv2 Modular Design
 <img src="assets/PPBv2_System_Modular_Design_20260312_horizontal.png" width="100%" />
 
+
+
 ## PPBv2 Navigation
 
 This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Amiga robot. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy.
 
 For implementation details, please refer to: [PPBv2 Navigation README](PPBv2_Navigation/README.md).
 
-**Note: The navigation codebase will be further upgraded and publicly released by June 2026.**
+
 
 ## PPBv2 Imaging
 
