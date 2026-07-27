@@ -1,6 +1,6 @@
 # PPBv2
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026
+Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on July 26, 2026
 
 ---
 
@@ -11,15 +11,25 @@ This repository includes the codebase for our phenotyping robot PhytoPatholoBot 
 <img src="assets/ppbv2_in_field.gif" width="100%" />
 
 ## PPBv2 Modular Design
-<img src="assets/PPBv2_System_Modular_Design_20260312_horizontal.png" width="100%" />
+<img src="assets/PPBv2_System_Modular_Design_20260726_horizontal.png" width="100%" />
 
 
 
 ## PPBv2 Navigation
 
-This is the ROS 2 package for GPS waypoints based robot navigation on Farm-ng Amiga robot. The codebase is deployed on Raspberry Pi 5 with ROS2 Jazzy.
+This repository provides two navigation configurations for GNSS waypoint-based navigation on the Farm-ng Amiga robot:
 
-For implementation details, please refer to: [PPBv2 Navigation README](PPBv2_Navigation/README.md).
+- **`main` (recommended):** Dual GPS navigation using a dual-antenna UM982 GNSS receiver. It provides RTK position and true heading without requiring a separate IMU.
+- **`single-gps-imu`:** The legacy navigation implementation based on a single GPS receiver and an IMU.
+
+The navigation stack is deployed on a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy. For Dual GPS setup and implementation details, see the
+[PPBv2 Navigation README](PPBv2_Navigation/README.md).
+
+To use the legacy Single GPS + IMU implementation, switch branches:
+
+```bash
+git switch single-gps-imu
+```
 
 
 

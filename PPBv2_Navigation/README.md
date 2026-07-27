@@ -1,6 +1,6 @@
 # PPBv2 Amiga Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026.
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 26, 2026
 
 
 
@@ -8,8 +8,7 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026.
 
 This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with a dual-antenna UM982 GNSS receiver and an Adafruit Feather M4 CAN microcontroller. The UM982 provides RTK position, true heading, and pitch without a separate IMU.
 
-Maintainers and coding agents should also read [`HANDOFF.md`](HANDOFF.md)
-before changing the GNSS, geometry, safety, or control pipeline.
+Maintainers and coding agents could also read [`HANDOFF.md`](HANDOFF.md) before changing the GNSS, geometry, safety, or control pipeline.
 
 The package supports multiple waypoint tracking controllers:
 
@@ -19,14 +18,15 @@ The package supports multiple waypoint tracking controllers:
 - `mpc_formal`: optimization-based receding-horizon MPC tracker.
 - `row_hybrid`: segment-length-aware hybrid controller for row navigation. It uses formal MPC for short connectors, pure pursuit for medium segments, and PID line tracking for long row segments.
 
-<img src="../assets/overview.png" alt="nav_diagram"  />
+<img src="../assets/dual_gps_overview.png" alt="nav_diagram"  />
 
 
 
 ## Hardware
 
 - [Farm-ng Amiga robot](https://store.farm-ng.com/)
-- UM982 dual-antenna GNSS receiver and two compatible multiband antennas
+- [UM982 dual-antenna GNSS receiver](https://www.amazon.com/dp/B0FCFZXDDJ?lv=shuf&rsd=D5eDWMLU%2BlZo6H0ytWeBpEDHKXB%2FOcsDmcQZWwHV38CM3ISNZMfZLK1%2FrAAe8%2Fnf8sC3sOUDDCqGa9AzsXbzcDa01EuH3%2FG1VnOwXIxYSYYF&edk=AQIDAHi1lw%2FM8UbbSMD9ScOOFEmBMHMthHeEhqDaQYPJUAX3jQFkG1KajJRK0UpRjdW%2FOK8dAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMNue5pNQTD4syVtUoAgEQgDu7Fq4A7aVxOrC%2BURE4feV3vhHwf5frlgX6dqASVvksRvEaQAYA46izYui3WygErr4Sb%2BhMZgkKwi79wQ%3D%3D&social_share=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&channelId=704&ref_=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&plpRedirect=mhFallback&th=1)
+- [GNSS Multi-Band L1/L2/L5 Surveying Antenna - TNC (SPK6618H)](https://www.sparkfun.com/gnss-multi-band-l1-l2-l5-surveying-antenna-tnc-spk6618h.html?gad_source=1&gad_campaignid=21251727806&gbraid=0AAAAADsj4ESEiGaW3DcX3fRbrfV9ID-rR) **x2**
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
 - [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview)
 
@@ -69,8 +69,6 @@ The package supports multiple waypoint tracking controllers:
    ```bash
    cd PPBv2_Navigation  # The workspace root directory containing the src folder
    colcon build --symlink-install
-   source install/setup.bashontaining the src folder
-   colcon build --symlink-install
    source install/setup.bash
    ```
 
@@ -92,39 +90,35 @@ The package supports multiple waypoint tracking controllers:
 
 
 
-## Getting Start
+## Getting Started
 
-### UM982 and NTRIP configuration
+### 1. Basic configuration
 
-Edit `src/amiga_navigation/config/um982.yaml` and set the stable Type-C
-`serial_port`, `baseline_m`, and all NTRIP connection fields, including
-`ntrip_password`.
+Configure the UM982 receiver, NTRIP connection, antenna geometry, and hardware ports before starting the navigation stack.
 
-The currently configured fixed-base profile is:
+#### 1.1 UM982 and NTRIP
+
+Edit `src/amiga_navigation/config/um982.yaml` and set the stable `serial_port`, `baseline_m`, and all NTRIP connection fields, including `ntrip_password`.
+
+Example NTRIP configuration:
 
 ```yaml
-ntrip_host: "150.221.24.235"
+ntrip_host: "your-ntrip-host"
 ntrip_port: 8002
-ntrip_mountpoint: "mountpoint3"
-ntrip_username: "user5"
-ntrip_password: "user5"
+ntrip_mountpoint: "your-mountpoint"
+ntrip_username: "your-username"
+ntrip_password: "your-password"
 ntrip_use_tls: false
 ```
 
-The profile currently uses `user5` for both username and password.
+Do not commit real NTRIP credentials to a public repository.
 
-`um982_driver` exclusively owns the single full-duplex USB serial connection.
-It reads GGA and UNIHEADINGA while writing RTCM received from the fixed-base
-NTRIP mountpoint. Published positions represent the geometric midpoint between
-ANT1 and ANT2, while odometry orientation represents the robot's forward
+`um982_driver` exclusively owns the single full-duplex USB serial connection. It reads GGA and NIHEADINGA while writing RTCM received from the fixed-base NTRIP mountpoint. Published positions represent the geometric midpoint between ANT1 and ANT2, while odometry orientation represents the robot's forward
 direction.
 
-#### Antenna layout
+#### 1.2 Antenna layout
 
-UM982 reports true heading along the physical baseline from ANT1 (master
-position antenna) toward ANT2 (heading/slave antenna). Configure that baseline
-relative to robot forward with `antenna_baseline_angle_deg`. Angles are viewed
-from above and positive clockwise, toward the robot's right:
+UM982 reports true heading along the physical baseline from ANT1 (master position antenna) toward ANT2 (heading/slave antenna). Configure that baseline relative to robot forward with `antenna_baseline_angle_deg`. Angles are viewed from above and positive clockwise, toward the robot's right:
 
 | Physical layout | `antenna_baseline_angle_deg` |
 |---|---:|
@@ -141,85 +135,78 @@ antenna_baseline_angle_deg: 90.0
 heading_offset_deg: 0.0
 ```
 
-In this example ANT2 is mounted to the robot's right of ANT1. The driver uses
-the raw ANT1-to-ANT2 heading to calculate the antenna midpoint, then subtracts
-90 degrees to obtain robot-forward heading. `heading_offset_deg` is a separate,
-optional fine calibration and should normally remain `0.0`.
+In this example ANT2 is mounted to the robot's right of ANT1. The driver uses the raw ANT1-to-ANT2 heading to calculate the antenna midpoint, then subtracts 90 degrees to obtain robot-forward heading. `heading_offset_deg` is a separate, optional fine calibration and should normally remain `0.0`.
 
-NTRIP v1 (`ICY`) and v2 (`HTTP`) responses are handled automatically. Plain
-TCP versus TLS is an explicit `ntrip_use_tls` setting so credentials are never
-silently probed over cleartext.
+NTRIP v1 (`ICY`) and v2 (`HTTP`) responses are handled automatically. Plain TCP versus TLS is an explicit `ntrip_use_tls` setting so credentials are never silently probed over cleartext.
 
-Building with `--symlink-install` lets later YAML edits take effect without
-rebuilding. With a normal installation, launch directly with the source YAML:
+Building with `--symlink-install` lets later YAML edits take effect without rebuilding. With a normal installation, launch directly with the source YAML:
 
 ```bash
 ros2 launch amiga_navigation basic_bringup.launch.py \
-  um982_config:="$PWD/src/amiga_navigation/config/um982.yaml"
+  um982_config:="$/home/cairlab/PPBv2_Navigation/src/amiga_navigation/config/um982.yaml"
 ```
 
-The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus
-UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only
-when the receiver configuration is managed elsewhere.
+The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
 
-1. **Configure hardware ports**
+#### 1.3 Hardware ports
 
-   Before running on the robot, update the serial device paths in:
+Before running on the robot, update the serial device paths in:
 
-   - `src/amiga_navigation/config/um982.yaml` for UM982, baseline, quality limits, and NTRIP.
-   - `src/amiga_navigation/amiga_navigation/amiga_serial_bridge.py`, if you want to change the default Feather M4 port.
+- `src/amiga_navigation/config/um982.yaml` for UM982, baseline, quality limits, and NTRIP.
+- `src/amiga_navigation/amiga_navigation/amiga_serial_bridge.py`, if you want to change the default Feather M4 port.
 
-   The current launch file uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
+The current launch file uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
 
 
-2. **Start the base stack without waypoint following**
+### 2. Start the base stack without waypoint following
 
    ```bash
    ros2 launch amiga_navigation basic_bringup.launch.py
    ```
 
-   For debug logging, use:
+For debug logging, use:
 
    ```bash
    ros2 launch amiga_navigation nav_debug.launch.py
    ```
 
-   This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
+This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
 
    
 
-3. **Record the waypoints for navigation (Optional)**
+### 3. Record waypoints for navigation (optional)
 
-   If the base stack is not already running, launch it with:
+If the base stack is not already running, launch it with:
 
    ```bash
    ros2 launch amiga_navigation basic_bringup.launch.py
    ```
 
-   Then start the GNSS waypoint logger:
+Then start the GNSS waypoint logger:
 
    ```bash
    ros2 run amiga_navigation gnss_waypoint_keyboard_logger
    ```
 
-   Controls:
+Controls:
 
    - Press `SPACE` to save the current GNSS fix as a waypoint.
    - Press `q` or `CTRL+C` to quit.
 
-   By default, waypoint files are saved in:
+By default, waypoint files are saved in:
 
    ```text
    /home/cairlab/navigation_waypoints
    ```
 
-   The logger generates the following files:
+The logger generates the following files:
 
-   - `latest_waypoints.csv`: Contains the most recently recorded waypoint sequence and is overwritten each time the logger is used.
+- `latest_waypoints.csv`: Contains the most recently recorded waypoint sequence and is overwritten each time the logger is used.
+
    - `waypoints_YYYY_MM_DD_HH_MM_SS.csv`: A timestamped historical copy. A custom filename may also be provided when saving a snapshot.
 
-   Waypoint CSV format:
+Waypoint CSV format:
 
    ```csv
    latitude,longitude
@@ -233,23 +220,23 @@ when the receiver configuration is managed elsewhere.
 
    
 
-4. **Run waypoints based navigation**
+### 4. Run waypoint-based navigation
 
-   If the base stack is not already running, launch it with:
+ If the base stack is not already running, launch it with:
 
    ```bash
    ros2 launch amiga_navigation basic_bringup.launch.py
    ```
 
-   In another terminal, run the waypoint follower:
+In another terminal, run the waypoint follower:
 
    ```bash
    ros2 run amiga_navigation waypoint_follower --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv #replace with your waypoint file path
    ```
 
-   The follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.
+The follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.
 
-   To choose a controller from the command line:
+To choose a controller from the command line:
 
    ```bash
    ros2 run amiga_navigation waypoint_follower \
@@ -257,7 +244,7 @@ when the receiver configuration is managed elsewhere.
      --controller pid_line
    ```
 
-   Valid controller choices are:
+Valid controller choices are:
 
    ```text
    pid_line
@@ -267,16 +254,16 @@ when the receiver configuration is managed elsewhere.
    row_hybrid
    ```
 
-   The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
+The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
 
-   The waypoint follower stores navigation progress in:
+The waypoint follower stores navigation progress in:
 
    ```text
    /home/cairlab/navigation_waypoints/status.txt
    /home/cairlab/navigation_waypoints/last_waypoints.csv
    ```
 
-   **The resume mode can be selected with:**
+**The resume mode can be selected with:**
 
    ```bash
    ros2 run amiga_navigation waypoint_follower --resume ask
@@ -284,7 +271,7 @@ when the receiver configuration is managed elsewhere.
    ros2 run amiga_navigation waypoint_follower --resume no
    ```
 
-   `--resume` can be combined with `--waypoints` and `--controller` in the same command.
+`--resume` can be combined with `--waypoints` and `--controller` in the same command.
 
    - `ask`: prompt in an interactive terminal when unfinished navigation is found.
    - `yes`: automatically continue from `last_waypoints.csv`.
