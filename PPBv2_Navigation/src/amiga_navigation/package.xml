@@ -3,7 +3,7 @@
 <package format="3">
   <name>amiga_navigation</name>
   <version>0.0.0</version>
-  <description>Lightweight GNSS plus IMU waypoint navigation package for the Amiga robot.</description>
+  <description>Dual-antenna UM982 RTK waypoint navigation for the Farm-ng Amiga robot.</description>
   <maintainer email="cairlab@todo.todo">cairlab</maintainer>
   <license>TODO: License declaration</license>
 
@@ -21,11 +21,7 @@
   <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-serial</exec_depend>
   <exec_depend>python3-pyproj</exec_depend>
-  <exec_depend>python3-pynmea2</exec_depend>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
   <export>

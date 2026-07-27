@@ -12,8 +12,8 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, qos_profile_sensor_data
-from sensor_msgs.msg import Imu, NavSatFix
-from std_msgs.msg import Bool, Float64, Float64MultiArray
+from sensor_msgs.msg import NavSatFix
+from std_msgs.msg import Bool, Float64MultiArray
 import tf_transformations
 
 
@@ -48,9 +48,6 @@ class NavTopicDebugLogger(Node):
 
         datum_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(Odometry, '/robot/odom', self.robot_odom_callback, qos_profile_sensor_data)
-        self.create_subscription(Imu, '/imu/data', self.imu_data_callback, qos_profile_sensor_data)
-        self.create_subscription(Float64, '/imu/raw_yaw_deg', self.imu_raw_yaw_callback, 10)
-        self.create_subscription(Float64, '/imu/ros_yaw_deg', self.imu_ros_yaw_callback, 10)
         self.create_subscription(NavSatFix, '/gps/fix', self.gps_fix_callback, qos_profile_sensor_data)
         self.create_subscription(Float64MultiArray, '/gps/datum', self.gps_datum_callback, datum_qos)
         self.create_subscription(Bool, '/gps/rtk_status_flag', self.rtk_status_callback, 10)
@@ -70,16 +67,6 @@ class NavTopicDebugLogger(Node):
             'robot_odom_y',
             'robot_odom_z',
             'robot_odom_yaw_deg',
-            'imu_raw_yaw_deg_age_sec',
-            'imu_raw_yaw_deg',
-            'imu_ros_yaw_deg_age_sec',
-            'imu_ros_yaw_deg',
-            'imu_data_age_sec',
-            'imu_data_msg_stamp',
-            'imu_data_roll_deg',
-            'imu_data_pitch_deg',
-            'imu_data_yaw_deg',
-            'imu_data_ang_vel_z',
             'gps_fix_age_sec',
             'gps_fix_msg_stamp',
             'gps_lat',
@@ -125,37 +112,6 @@ class NavTopicDebugLogger(Node):
             'z': pose.position.z,
             'yaw_deg': yaw_deg_from_quaternion(pose.orientation),
         }
-
-    def _record_imu(self, topic: str, msg: Imu):
-        roll, pitch, yaw = tf_transformations.euler_from_quaternion([
-            msg.orientation.x,
-            msg.orientation.y,
-            msg.orientation.z,
-            msg.orientation.w,
-        ])
-        self.latest[topic] = {
-            'received_sec': self._now_sec(),
-            'msg_stamp': stamp_to_sec(msg.header.stamp),
-            'roll_deg': math.degrees(roll),
-            'pitch_deg': math.degrees(pitch),
-            'yaw_deg': math.degrees(yaw),
-            'ang_vel_z': msg.angular_velocity.z,
-        }
-
-    def imu_data_callback(self, msg):
-        self._record_imu('imu_data', msg)
-
-    def _record_float(self, topic: str, msg: Float64):
-        self.latest[topic] = {
-            'received_sec': self._now_sec(),
-            'value': msg.data,
-        }
-
-    def imu_raw_yaw_callback(self, msg):
-        self._record_float('imu_raw_yaw_deg', msg)
-
-    def imu_ros_yaw_callback(self, msg):
-        self._record_float('imu_ros_yaw_deg', msg)
 
     def gps_fix_callback(self, msg):
         self.latest['gps_fix'] = {
@@ -211,16 +167,6 @@ class NavTopicDebugLogger(Node):
             self._value('robot_odom', 'y'),
             self._value('robot_odom', 'z'),
             self._value('robot_odom', 'yaw_deg'),
-            self._age('imu_raw_yaw_deg', now_sec),
-            self._value('imu_raw_yaw_deg', 'value'),
-            self._age('imu_ros_yaw_deg', now_sec),
-            self._value('imu_ros_yaw_deg', 'value'),
-            self._age('imu_data', now_sec),
-            self._value('imu_data', 'msg_stamp'),
-            self._value('imu_data', 'roll_deg'),
-            self._value('imu_data', 'pitch_deg'),
-            self._value('imu_data', 'yaw_deg'),
-            self._value('imu_data', 'ang_vel_z'),
             self._age('gps_fix', now_sec),
             self._value('gps_fix', 'msg_stamp'),
             self._value('gps_fix', 'lat'),

@@ -5,7 +5,8 @@
       dangerous:
         topic   : cmd_vel_stop
         timeout : 1.0
-        priority: 1
+        # Highest priority: RTK/heading safety stop must override navigation.
+        priority: 255
       default:
         topic   : cmd_vel
         timeout : 0.5

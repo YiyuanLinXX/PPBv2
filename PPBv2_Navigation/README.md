@@ -6,7 +6,10 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 22, 2026.
 
 ## Overview
 
-This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with an Emlid Reach RS3 GNSS receiver, a Witmotion IMU HWT 905, and an Adafruit Feather M4 CAN microcontroller.
+This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with a dual-antenna UM982 GNSS receiver and an Adafruit Feather M4 CAN microcontroller. The UM982 provides RTK position, true heading, and pitch without a separate IMU.
+
+Maintainers and coding agents should also read [`HANDOFF.md`](HANDOFF.md)
+before changing the GNSS, geometry, safety, or control pipeline.
 
 The package supports multiple waypoint tracking controllers:
 
@@ -23,8 +26,7 @@ The package supports multiple waypoint tracking controllers:
 ## Hardware
 
 - [Farm-ng Amiga robot](https://store.farm-ng.com/)
-- [Emlid Reach RS3 GNSS receiver](https://emlid.com/reachrs3/)
-- [Witmotion IMU HWT905](https://www.wit-motion.com/index.php/HighprecisionTilt/39.html)
+- UM982 dual-antenna GNSS receiver and two compatible multiband antennas
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
 - [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview)
 
@@ -51,13 +53,13 @@ The package supports multiple waypoint tracking controllers:
 4. Install necessary Python packages by running
 
    ```bash
-   pip install pyserial numpy scipy simple-pid pynmea2 pyproj witmotion
+   pip install pyserial numpy scipy simple-pid pyproj
    ```
 
    If you're on a Debian/Ubuntu system with a managed Python environment, , you may need to add the `--break-system-packages` flag:
 
    ```bash
-   pip install --break-system-packages pyserial numpy simple-pid pynmea2 pyproj witmotion
+   pip install --break-system-packages pyserial numpy scipy simple-pid pyproj
    ```
 
    Or, to avoid conflicts, you can use a virtual environment.
@@ -66,12 +68,14 @@ The package supports multiple waypoint tracking controllers:
 
    ```bash
    cd PPBv2_Navigation  # The workspace root directory containing the src folder
-   colcon build
+   colcon build --symlink-install
+   source install/setup.bashontaining the src folder
+   colcon build --symlink-install
    source install/setup.bash
    ```
 
    When opening a new terminal, source both the ROS 2 environment and the workspace before running any nodes:
-
+   
    ```bash
    source /opt/ros/jazzy/setup.bash
    cd /path/to/PPBv2_Navigation
@@ -79,7 +83,7 @@ The package supports multiple waypoint tracking controllers:
    ```
 
    Optionally, add these commands to `~/.bashrc` to source them automatically in each new terminal:
-
+   
    ```bash
    echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
    echo "source /path/to/PPBv2_Navigation/install/setup.bash" >> ~/.bashrc
@@ -90,15 +94,82 @@ The package supports multiple waypoint tracking controllers:
 
 ## Getting Start
 
+### UM982 and NTRIP configuration
+
+Edit `src/amiga_navigation/config/um982.yaml` and set the stable Type-C
+`serial_port`, `baseline_m`, and all NTRIP connection fields, including
+`ntrip_password`.
+
+The currently configured fixed-base profile is:
+
+```yaml
+ntrip_host: "150.221.24.235"
+ntrip_port: 8002
+ntrip_mountpoint: "mountpoint3"
+ntrip_username: "user5"
+ntrip_password: "user5"
+ntrip_use_tls: false
+```
+
+The profile currently uses `user5` for both username and password.
+
+`um982_driver` exclusively owns the single full-duplex USB serial connection.
+It reads GGA and UNIHEADINGA while writing RTCM received from the fixed-base
+NTRIP mountpoint. Published positions represent the geometric midpoint between
+ANT1 and ANT2, while odometry orientation represents the robot's forward
+direction.
+
+#### Antenna layout
+
+UM982 reports true heading along the physical baseline from ANT1 (master
+position antenna) toward ANT2 (heading/slave antenna). Configure that baseline
+relative to robot forward with `antenna_baseline_angle_deg`. Angles are viewed
+from above and positive clockwise, toward the robot's right:
+
+| Physical layout | `antenna_baseline_angle_deg` |
+|---|---:|
+| ANT1 rear, ANT2 front | `0.0` |
+| ANT1 front, ANT2 rear | `180.0` |
+| ANT2 directly right of ANT1 | `90.0` |
+| ANT2 directly left of ANT1 | `-90.0` |
+
+For example:
+
+```yaml
+baseline_m: 1.28
+antenna_baseline_angle_deg: 90.0
+heading_offset_deg: 0.0
+```
+
+In this example ANT2 is mounted to the robot's right of ANT1. The driver uses
+the raw ANT1-to-ANT2 heading to calculate the antenna midpoint, then subtracts
+90 degrees to obtain robot-forward heading. `heading_offset_deg` is a separate,
+optional fine calibration and should normally remain `0.0`.
+
+NTRIP v1 (`ICY`) and v2 (`HTTP`) responses are handled automatically. Plain
+TCP versus TLS is an explicit `ntrip_use_tls` setting so credentials are never
+silently probed over cleartext.
+
+Building with `--symlink-install` lets later YAML edits take effect without
+rebuilding. With a normal installation, launch directly with the source YAML:
+
+```bash
+ros2 launch amiga_navigation basic_bringup.launch.py \
+  um982_config:="$PWD/src/amiga_navigation/config/um982.yaml"
+```
+
+The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus
+UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only
+when the receiver configuration is managed elsewhere.
+
 1. **Configure hardware ports**
 
    Before running on the robot, update the serial device paths in:
 
-   - `src/amiga_navigation/launch/basic_bringup.launch.py`
-   - `src/amiga_navigation/amiga_navigation/gnss_publisher.py`, if you want to change the default GNSS port.
+   - `src/amiga_navigation/config/um982.yaml` for UM982, baseline, quality limits, and NTRIP.
    - `src/amiga_navigation/amiga_navigation/amiga_serial_bridge.py`, if you want to change the default Feather M4 port.
 
-   The current launch file uses `/dev/serial/by-id/...` paths for the Emlid Reach RS3 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
+   The current launch file uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
 
 
@@ -307,7 +378,8 @@ Useful runtime checks:
 ```bash
 ros2 topic echo /gps/fix
 ros2 topic echo /gps/rtk_status_flag
-ros2 topic echo /imu
+ros2 topic echo /um982/heading_deg
+ros2 topic echo /um982/pitch_deg
 ros2 topic echo /robot/odom
 ros2 topic echo /cmd_vel_nav
 ros2 topic echo /cmd_vel_out

@@ -1,0 +1,59 @@
+um982_driver:
+  ros__parameters:
+    # Full-duplex Type-C USB serial device:
+    # ls -l /dev/serial/by-id/
+    serial_port: "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+    baudrate: 115200
+
+    # ANT1 is the master-position antenna; ANT2 is the heading/slave antenna.
+    # baseline_m is the measured ANT1-to-ANT2 distance in metres.
+    baseline_m: 1.28
+    baseline_tolerance_m: 0.1
+
+    # ANT1-to-ANT2 direction relative to the robot's forward direction,
+    # viewed from above. Positive angles turn clockwise toward robot-right.
+    #
+    #   ANT1 rear,  ANT2 front:  0.0
+    #   ANT1 front, ANT2 rear:  180.0
+    #   ANT2 on the robot's right side of ANT1:  90.0
+    #   ANT2 on the robot's left side of ANT1:  -90.0
+    #
+    # Change this value when the antenna layout changes; no code change is
+    # required. The driver still computes position at the antenna midpoint.
+    antenna_baseline_angle_deg: 0.0
+
+    # Optional small compass-heading calibration applied after layout
+    # compensation. Normally leave this at zero.
+    heading_offset_deg: 0.0
+
+    # Set to -1.0 only if the reported pitch sign is opposite to the desired
+    # robot pitch convention.
+    pitch_multiplier: 1.0
+    configure_receiver_on_start: true
+    receiver_output_period_sec: 0.1
+
+    # A navigation pose is valid only when all thresholds pass.
+    max_heading_stddev_deg: 1.0
+    max_heading_age_sec: 0.3
+    max_position_heading_skew_sec: 0.2
+    max_differential_age_sec: 3.0
+    minimum_heading_satellites: 6
+
+    # Fixed-base NTRIP mountpoint: RTCM is received, rover GGA is not sent.
+    ntrip_enabled: true
+    # ntrip_host: "150.221.24.235"
+    # ntrip_port: 8002
+    # ntrip_mountpoint: "mountpoint3"
+    # ntrip_username: "user5"
+    # ntrip_password: "user5"
+    ntrip_host: "192.168.1.88"
+    ntrip_port: 2101
+    ntrip_mountpoint: "REACH"
+    ntrip_username: "reach"
+    ntrip_password: "emlidreach"
+    # NTRIP v1 (ICY) and v2 (HTTP) responses are accepted automatically.
+    # TLS must be selected explicitly so credentials are never probed in cleartext.
+    # This caster uses legacy/plain NTRIP over TCP, not TLS.
+    ntrip_use_tls: false
+    ntrip_socket_timeout_sec: 10.0
+    ntrip_data_timeout_sec: 5.0
