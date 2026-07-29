@@ -41,12 +41,12 @@ um982_driver:
 
     # Fixed-base NTRIP mountpoint: RTCM is received, rover GGA is not sent.
     ntrip_enabled: true
-    # ntrip_host: "150.221.24.235"
-    # ntrip_port: 8002
-    # ntrip_mountpoint: "mountpoint3"
-    # ntrip_username: "user5"
-    # ntrip_password: "user5"
-    ntrip_host: "192.168.1.88"
+    # ntrip_host: "use your NTRIP profile address"
+    # ntrip_port: use your NTRIP profile port
+    # ntrip_mountpoint: "use your NTRIP mountpoint"
+    # ntrip_username: "use your NTRIP profile username"
+    # ntrip_password: "use your NTRIP profile password"
+    ntrip_host: "192.168.1.88" #local NTRIP
     ntrip_port: 2101
     ntrip_mountpoint: "REACH"
     ntrip_username: "reach"
