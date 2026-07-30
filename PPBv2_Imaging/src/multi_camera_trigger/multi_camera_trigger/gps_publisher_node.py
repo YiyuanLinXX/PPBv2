@@ -3,9 +3,9 @@
 # =============================================================================
 # gps_publisher_node.py
 # ROS2 node: read NMEA GPGGA from serial and publish:
-#   - sensor_msgs/NavSatFix on /gps/fix
+#   - sensor_msgs/NavSatFix on /imaging/gps/fix
 #   - std_msgs/String on /gps/utc for raw satellite UTC time hh:mm:ss.ss
-#   - std_msgs/String on /gps/fix_detail as JSON with UTC + fix payload
+#   - std_msgs/String on /imaging/gps/fix_detail as JSON with UTC + fix payload
 # =============================================================================
 
 import json
@@ -29,9 +29,9 @@ class GpsPublisher(Node):
 
         self.declare_parameter('port', '/dev/ttyUSB0')
         self.declare_parameter('baud', 115200)
-        self.declare_parameter('fix_topic', '/gps/fix')
+        self.declare_parameter('fix_topic', '/imaging/gps/fix')
         self.declare_parameter('utc_topic', '/gps/utc')
-        self.declare_parameter('detail_topic', '/gps/fix_detail')
+        self.declare_parameter('detail_topic', '/imaging/gps/fix_detail')
 
         port = self.get_parameter('port').get_parameter_value().string_value
         baud = self.get_parameter('baud').get_parameter_value().integer_value

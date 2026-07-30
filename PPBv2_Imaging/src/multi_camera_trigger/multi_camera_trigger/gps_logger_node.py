@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding=utf-8
 # gps_logger_node.py
-# ROS2 node: subscribe to /gps/fix_detail and log synchronized GPS data
+# ROS2 node: subscribe to /imaging/gps/fix_detail and log synchronized GPS data
 
 import csv
 import json
@@ -17,7 +17,7 @@ class GpsLogger(Node):
         super().__init__('gps_logger')
 
         self.declare_parameter('log_file', '/tmp/gps_log.csv')
-        self.declare_parameter('gps_detail_topic', '/gps/fix_detail')
+        self.declare_parameter('gps_detail_topic', '/imaging/gps/fix_detail')
 
         log_file = self.get_parameter('log_file').get_parameter_value().string_value
         gps_detail_topic = self.get_parameter('gps_detail_topic').get_parameter_value().string_value
@@ -44,7 +44,9 @@ class GpsLogger(Node):
         try:
             payload = json.loads(msg.data)
         except json.JSONDecodeError as exc:
-            self.get_logger().warn(f'Ignoring malformed /gps/fix_detail payload: {exc}')
+            self.get_logger().warn(
+                f'Ignoring malformed /imaging/gps/fix_detail payload: {exc}'
+            )
             return
 
         latitude = payload.get('latitude')

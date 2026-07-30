@@ -46,7 +46,9 @@ class MultiCameraTriggerNode(Node):
         self.declare_parameter('gain', 5.0)
         self.declare_parameter('wb_red', 1.34)
         self.declare_parameter('wb_blue', 2.98)
-        self.declare_parameter('gps_detail_topic', '/gps/fix_detail')
+        self.declare_parameter(
+            'gps_detail_topic', '/imaging/gps/fix_detail'
+        )
         self.declare_parameter('gps_qos_depth', 200)
         self.declare_parameter('gps_match_max_age_sec', 0.25)
         self.declare_parameter('camera_timeout_ms', 1000)
