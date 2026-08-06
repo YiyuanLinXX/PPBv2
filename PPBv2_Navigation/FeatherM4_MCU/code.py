@@ -19,7 +19,12 @@ from farm_ng.utils.packet import AmigaRpdo1
 from farm_ng.utils.packet import AmigaTpdo1
 from farm_ng.utils.packet import DASHBOARD_NODE_ID
 from farm_ng.utils.ticks import TickRepeater
+import time
 from usb_cdc import console
+
+
+COMMAND_TIMEOUT_SEC = 0.75
+MAX_SERIAL_BUFFER_CHARS = 128
 
 
 class HelloMainLoopApp:
@@ -27,76 +32,86 @@ class HelloMainLoopApp:
         self.can = can
         self.node_id = node_id
         self.main_loop = main_loop
-        self.main_loop.show_debug = True
+        self.main_loop.show_debug = False
         self.cmd_repeater = TickRepeater(ticks_period_ms=50)
 
         self.cmd_speed = 0.0
         self.cmd_ang_rate = 0.0
-        self.request_state = AmigaControlState.STATE_AUTO_READY
-        self.inc = 0.1
-
-        self.i = 1
+        self.last_command_time = time.monotonic()
+        self.serial_buffer = ""
+        self.watchdog_triggered = False
 
         self._register_message_handlers()
 
     def _register_message_handlers(self):
-        self.main_loop.command_handlers[CanOpenObject.TPDO1 | DASHBOARD_NODE_ID] = self._handle_amiga_tpdo1
+        cob_id = CanOpenObject.TPDO1 | DASHBOARD_NODE_ID
+        self.main_loop.command_handlers[cob_id] = self._handle_amiga_tpdo1
 
     def _handle_amiga_tpdo1(self, message):
         self.amiga_tpdo1 = AmigaTpdo1.from_can_data(message.data)
         if self.amiga_tpdo1.state != AmigaControlState.STATE_AUTO_ACTIVE:
             self.cmd_speed = 0.0
             self.cmd_ang_rate = 0.0
-            self.request_state = AmigaControlState.STATE_AUTO_READY
-        #print(str(self.amiga_tpdo1.meas_speed) + " " + str(self.amiga_tpdo1.meas_ang_rate))
-        self.serial_write(str(self.amiga_tpdo1.meas_speed) + " " + str(self.amiga_tpdo1.meas_ang_rate))
-        
-    def parse_wasd_cmd(self, char):
-        if char == " ":
-            if self.request_state == AmigaControlState.STATE_AUTO_READY:
-                self.request_state = AmigaControlState.STATE_AUTO_ACTIVE
-            else:
-                self.request_state = AmigaControlState.STATE_AUTO_READY
-        elif char == "w":
-            self.cmd_speed += self.inc
-        elif char == "s":
-            self.cmd_speed -= self.inc
-        elif char == "a":
-            self.cmd_ang_rate += self.inc
-        elif char == "d":
-            self.cmd_ang_rate -= self.inc
+        self.serial_write(
+            "{},{},{}".format(
+                self.amiga_tpdo1.state,
+                self.amiga_tpdo1.meas_speed,
+                self.amiga_tpdo1.meas_ang_rate,
+            )
+        )
+
     def parse_twist(self, twist):
-        # if twist == " ":
-        #     if self.request_state == AmigaControlState.STATE_AUTO_READY:
-        #         self.request_state = AmigaControlState.STATE_AUTO_ACTIVE
-        #     else:
-        #         self.request_state = AmigaControlState.STATE_AUTO_READY
-        # else:
-        arr = twist.split(",")
-      #  print(str(arr))
-        self.cmd_speed = float(arr[0])
-        self.cmd_ang_rate = float(arr[1])
+        fields = twist.strip().split(",")
+        if len(fields) != 2:
+            raise ValueError("expected two comma-separated fields")
+        self.cmd_speed = float(fields[0])
+        self.cmd_ang_rate = float(fields[1])
+        self.last_command_time = time.monotonic()
+        if self.watchdog_triggered:
+            print("Serial command restored")
+        self.watchdog_triggered = False
+
     def serial_read(self):
         if console.in_waiting > 0:
-            char = console.read(console.in_waiting).decode()
-            print(f"Read character: {char}")
-            try:
-                self.parse_twist(char)
-            except:
-                print('Bad twist')
+            chunk = console.read(console.in_waiting).decode()
+            self.serial_buffer += chunk
+            if len(self.serial_buffer) > MAX_SERIAL_BUFFER_CHARS:
+                self.serial_buffer = self.serial_buffer[-MAX_SERIAL_BUFFER_CHARS:]
+                print("Serial buffer truncated")
 
-    def serial_write(self,msg):
+        while "\n" in self.serial_buffer:
+            line, self.serial_buffer = self.serial_buffer.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                self.parse_twist(line)
+            except Exception as exc:
+                print("Bad twist '{}': {}".format(line, exc))
+
+    def serial_write(self, msg):
         console.write(msg.encode() + b"\r\n")
+
+    def enforce_watchdog(self):
+        if time.monotonic() - self.last_command_time <= COMMAND_TIMEOUT_SEC:
+            return
+        self.cmd_speed = 0.0
+        self.cmd_ang_rate = 0.0
+        if not self.watchdog_triggered:
+            print("Serial command watchdog triggered; sending stop")
+        self.watchdog_triggered = True
+
     def iter(self):
         self.serial_read()
-
-
+        self.enforce_watchdog()
         if self.cmd_repeater.check():
             self.can.send(
                 Message(
                     id=CanOpenObject.RPDO1 | DASHBOARD_NODE_ID,
                     data=AmigaRpdo1(
-                        state_req=AmigaControlState.STATE_AUTO_ACTIVE, cmd_speed=self.cmd_speed, cmd_ang_rate=self.cmd_ang_rate
+                        state_req=AmigaControlState.STATE_AUTO_ACTIVE,
+                        cmd_speed=self.cmd_speed,
+                        cmd_ang_rate=self.cmd_ang_rate,
                     ).encode(),
                 )
             )
