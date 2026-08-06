@@ -8,6 +8,8 @@ Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 26, 2026
 
 This repository contains the ROS 2 navigation package used for GNSS waypoint navigation on a Farm-ng Amiga robot. The current stack is designed for a Raspberry Pi 5 running Ubuntu 24.04 and ROS 2 Jazzy, with a dual-antenna UM982 GNSS receiver and an Adafruit Feather M4 CAN microcontroller. The UM982 provides RTK position, true heading, and pitch without a separate IMU.
 
+Most of the stack is robot-base independent. The UM982 driver, datum handling, waypoint logger, waypoint follower, controller implementations, RTK safety monitor, and `twist_mux` pipeline can be reused on another robot base. To use a different base, replace or create the final bridge that converts `/cmd_vel_out` into that robot's command interface.
+
 Maintainers and coding agents could also read [`HANDOFF.md`](HANDOFF.md) before changing the GNSS, geometry, safety, or control pipeline.
 
 The package supports multiple waypoint tracking controllers:
@@ -24,7 +26,7 @@ The package supports multiple waypoint tracking controllers:
 
 ## Hardware
 
-- [Farm-ng Amiga robot](https://store.farm-ng.com/)
+- [Farm-ng Amiga robot](https://store.farm-ng.com/) (you can also use your own robot base and create a node for low-level controller communication)
 - [UM982 dual-antenna GNSS receiver](https://www.amazon.com/dp/B0FCFZXDDJ?lv=shuf&rsd=D5eDWMLU%2BlZo6H0ytWeBpEDHKXB%2FOcsDmcQZWwHV38CM3ISNZMfZLK1%2FrAAe8%2Fnf8sC3sOUDDCqGa9AzsXbzcDa01EuH3%2FG1VnOwXIxYSYYF&edk=AQIDAHi1lw%2FM8UbbSMD9ScOOFEmBMHMthHeEhqDaQYPJUAX3jQFkG1KajJRK0UpRjdW%2FOK8dAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMNue5pNQTD4syVtUoAgEQgDu7Fq4A7aVxOrC%2BURE4feV3vhHwf5frlgX6dqASVvksRvEaQAYA46izYui3WygErr4Sb%2BhMZgkKwi79wQ%3D%3D&social_share=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&channelId=704&ref_=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&plpRedirect=mhFallback&th=1)
 - [GNSS Multi-Band L1/L2/L5 Surveying Antenna - TNC (SPK6618H)](https://www.sparkfun.com/gnss-multi-band-l1-l2-l5-surveying-antenna-tnc-spk6618h.html?gad_source=1&gad_campaignid=21251727806&gbraid=0AAAAADsj4ESEiGaW3DcX3fRbrfV9ID-rR) **x2**
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
@@ -376,6 +378,8 @@ ros2 topic echo /cmd_vel_out
 ## Feather M4 MCU
 
 The `FeatherM4_MCU/code.py` script receives serial velocity commands from the Raspberry Pi and sends Amiga CAN control commands.
+
+This bridge is the Amiga-specific part of the stack. For another robot base, keep the upstream ROS topics and navigation nodes the same, but implement a different bridge node that subscribes to `/cmd_vel_out` and sends the equivalent velocity command to your robot's motor controller, CAN bus, serial protocol, or vendor API.
 
 Upload `FeatherM4_MCU/code.py` to the Feather M4 CAN microcontroller following the Farm-ng MCU kit documentation:
 
