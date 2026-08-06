@@ -30,6 +30,10 @@ class MPCRolloutConfig:
     goal_distance_weight: float = 4.0
     effort_weight: float = 0.3
     progress_weight: float = 1.0
+    start_slowdown_distance: float = 0.0
+    initial_speed_ratio: float = 0.3
+    enable_start_slowdown: bool = False
+    enable_goal_slowdown: bool = True
     max_cross_track_error: float = 3.0
     goal_threshold: float = 0.30
 
@@ -58,6 +62,11 @@ class MPCRolloutController:
             self.config.slowdown_distance,
             self.config.min_forward_ratio,
             metrics.heading_error,
+            enable_goal_slowdown=self.config.enable_goal_slowdown,
+            dist_from_start=metrics.dist_from_start,
+            start_slowdown_distance=self.config.start_slowdown_distance,
+            initial_speed_ratio=self.config.initial_speed_ratio,
+            enable_start_slowdown=self.config.enable_start_slowdown,
         )
         speed_candidates = [base_speed * scale for scale in (0.35, 0.6, 1.0)]
         angular_candidates = np.linspace(

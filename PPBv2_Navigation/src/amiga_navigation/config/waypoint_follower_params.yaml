@@ -18,6 +18,8 @@
     # target_speed: nominal forward speed in m/s shared by all controllers.
     # max_angular_speed: angular velocity limit in rad/s shared by tracking controllers.
     # min_forward_ratio: minimum fraction of target_speed allowed during slowdown.
+    # enable_start_slowdown: whether to ramp speed up near the start of each segment.
+    # enable_goal_slowdown: whether to slow down when approaching each waypoint.
     # max_cross_track_error: hard safety limit on lateral error in meters.
     # goal_threshold: distance in meters considered as waypoint reached.
     # alignment_threshold: heading threshold in radians before linear tracking begins.
@@ -38,6 +40,8 @@
     target_speed: 1.0
     max_angular_speed: 0.65
     min_forward_ratio: 0.2
+    enable_start_slowdown: true
+    enable_goal_slowdown: true
     max_cross_track_error: 1.0
     goal_threshold: 0.30
     alignment_threshold: 0.10
@@ -67,10 +71,10 @@
     # pid_kp, pid_ki, pid_kd: PID gains for cross-track error correction.
     # heading_gain: additional heading correction gain during line tracking.
     # max_heading_for_full_speed: heading error threshold below which full forward speed is allowed.
-    # dist_start_threshold: distance from segment start over which speed ramps up.
-    # dist_stop_threshold: distance to segment goal over which speed ramps down.
+    # dist_start_threshold: distance from segment start over which speed ramps up when enable_start_slowdown is true.
+    # dist_stop_threshold: distance to segment goal over which speed ramps down when enable_goal_slowdown is true.
     # initial_speed_ratio: minimum speed ratio used during the initial ramp-up stage.
-    # stop_speed_ratio: minimum speed ratio used near the goal.
+    # stop_speed_ratio: minimum speed ratio used near the goal by pid_line.
     # regulate_target_speed: whether to dynamically reduce target_speed according to error geometry.
     max_lateral_speed: 0.4
     epsilon: 0.5

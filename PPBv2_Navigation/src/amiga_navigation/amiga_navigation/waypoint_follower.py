@@ -89,6 +89,8 @@ class WaypointFollower(Node):
             dist_stop_threshold=self._get_float('dist_stop_threshold'),
             initial_speed_ratio=self._get_float('initial_speed_ratio'),
             stop_speed_ratio=self._get_float('stop_speed_ratio'),
+            enable_start_slowdown=self._get_bool('enable_start_slowdown'),
+            enable_goal_slowdown=self._get_bool('enable_goal_slowdown'),
             regulate_target_speed=self._get_bool('regulate_target_speed'),
         )
         self.turn_config = TurnConfig(
@@ -108,6 +110,10 @@ class WaypointFollower(Node):
             slowdown_distance=self._get_float('pure_pursuit_slowdown_distance'),
             max_angular_speed=self._get_float('max_angular_speed'),
             min_forward_ratio=self._get_float('min_forward_ratio'),
+            start_slowdown_distance=self._get_float('dist_start_threshold'),
+            initial_speed_ratio=self._get_float('initial_speed_ratio'),
+            enable_start_slowdown=self._get_bool('enable_start_slowdown'),
+            enable_goal_slowdown=self._get_bool('enable_goal_slowdown'),
             max_cross_track_error=self._get_float('max_cross_track_error'),
             goal_threshold=self._get_float('goal_threshold'),
         )
@@ -124,6 +130,10 @@ class WaypointFollower(Node):
             goal_distance_weight=self._get_float('mpc_goal_distance_weight'),
             effort_weight=self._get_float('mpc_effort_weight'),
             progress_weight=self._get_float('mpc_progress_weight'),
+            start_slowdown_distance=self._get_float('dist_start_threshold'),
+            initial_speed_ratio=self._get_float('initial_speed_ratio'),
+            enable_start_slowdown=self._get_bool('enable_start_slowdown'),
+            enable_goal_slowdown=self._get_bool('enable_goal_slowdown'),
             max_cross_track_error=self._get_float('max_cross_track_error'),
             goal_threshold=self._get_float('goal_threshold'),
         )
@@ -148,6 +158,10 @@ class WaypointFollower(Node):
             progress_weight=self._get_float('formal_mpc_progress_weight'),
             solver_maxiter=self._get_int('formal_mpc_solver_maxiter'),
             solver_ftol=self._get_float('formal_mpc_solver_ftol'),
+            start_slowdown_distance=self._get_float('dist_start_threshold'),
+            initial_speed_ratio=self._get_float('initial_speed_ratio'),
+            enable_start_slowdown=self._get_bool('enable_start_slowdown'),
+            enable_goal_slowdown=self._get_bool('enable_goal_slowdown'),
             max_cross_track_error=self._get_float('max_cross_track_error'),
             goal_threshold=self._get_float('goal_threshold'),
         )
@@ -231,6 +245,8 @@ class WaypointFollower(Node):
         self.declare_parameter('dist_stop_threshold', 1.0)
         self.declare_parameter('initial_speed_ratio', 0.22)
         self.declare_parameter('stop_speed_ratio', 0.0)
+        self.declare_parameter('enable_start_slowdown', True)
+        self.declare_parameter('enable_goal_slowdown', True)
         self.declare_parameter('regulate_target_speed', True)
         self.declare_parameter('turn_gain', 0.7)
         self.declare_parameter('turn_min_speed', 0.14)

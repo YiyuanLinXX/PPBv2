@@ -228,6 +228,12 @@ class Um982Driver(Node):
         self.latest_heading_rx = None
         self.latest_gga_rx = None
         self.last_valid_solution_rx = None
+        self.latest_fix_quality = None
+        self.latest_differential_age = None
+        self.solution_valid = False
+        self.solution_reason = 'waiting for GGA'
+        self.last_logged_solution_valid = None
+        self.last_status_log_time = None
         self.rx_buffer = bytearray()
         self.last_warning = {}
         self.stop_event = threading.Event()
@@ -279,6 +285,8 @@ class Um982Driver(Node):
             'ntrip_socket_timeout_sec': 10.0,
             'ntrip_data_timeout_sec': 5.0,
             'rtcm_queue_max_chunks': 256,
+            'gps_status_log_enabled': True,
+            'gps_status_log_period_sec': 5.0,
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -407,6 +415,8 @@ class Um982Driver(Node):
         return True, ''
 
     def _process_fix(self, fix, now):
+        self.latest_fix_quality = fix.quality
+        self.latest_differential_age = fix.differential_age_sec
         heading_ok, reason = self._valid_heading(now)
         position_ok = fix.quality == 4
         age_ok = (
@@ -420,12 +430,9 @@ class Um982Driver(Node):
             <= self.double_parameter('max_position_heading_skew_sec')
         )
         if not (position_ok and age_ok and heading_ok and skew_ok):
-            self.warn_limited(
-                'invalid_solution',
-                'UM982 solution rejected: '
-                f'GGA quality={fix.quality}, '
-                f'diff_age={fix.differential_age_sec}, '
-                f'heading={reason or "ok"}, synchronized={skew_ok}',
+            self.solution_valid = False
+            self.solution_reason = self._build_rejection_reason(
+                position_ok, age_ok, heading_ok, skew_ok, reason
             )
             return
 
@@ -457,6 +464,25 @@ class Um982Driver(Node):
         self.heading_pub.publish(Float64(data=robot_heading))
         self.pitch_pub.publish(Float64(data=pitch))
         self.last_valid_solution_rx = now
+        self.solution_valid = True
+        self.solution_reason = 'ok'
+
+    def _build_rejection_reason(
+        self, position_ok, age_ok, heading_ok, skew_ok, heading_reason
+    ):
+        reasons = []
+        if not position_ok:
+            reasons.append(f'GGA quality={self.latest_fix_quality}')
+        if not age_ok:
+            diff_age = self._format_optional_float(
+                self.latest_differential_age
+            )
+            reasons.append(f'diff_age={diff_age}s')
+        if not heading_ok:
+            reasons.append(f'heading={heading_reason or "invalid"}')
+        if not skew_ok:
+            reasons.append('GGA/heading skew too large')
+        return ', '.join(reasons) if reasons else 'invalid solution'
 
     def _publish_fix(self, stamp, latitude, longitude, altitude):
         msg = NavSatFix()
@@ -518,6 +544,103 @@ class Um982Driver(Node):
                     <= self.double_parameter('ntrip_data_timeout_sec')
                 )
         self.status_pub.publish(Bool(data=not valid))
+        self._maybe_log_gps_status(valid, now)
+
+    def _maybe_log_gps_status(self, valid, now):
+        if not self.bool_parameter('gps_status_log_enabled'):
+            return
+
+        state_changed = (
+            self.last_logged_solution_valid is None
+            or valid != self.last_logged_solution_valid
+        )
+        period = max(self.double_parameter('gps_status_log_period_sec'), 1.0)
+        periodic_due = (
+            self.last_status_log_time is None
+            or now - self.last_status_log_time >= period
+        )
+        if not state_changed and not periodic_due:
+            return
+
+        message = self._format_gps_status(valid, now)
+        if valid:
+            self.get_logger().info(message)
+        else:
+            self.get_logger().warning(message)
+        self.last_logged_solution_valid = valid
+        self.last_status_log_time = now
+
+    def _format_gps_status(self, valid, now):
+        status = 'OK' if valid else 'NOT FIX'
+        reason = 'ok' if valid else self._runtime_status_reason(now)
+        gga_age = self._age_text(now, self.latest_gga_rx)
+        heading_age = self._age_text(now, self.latest_heading_rx)
+        valid_age = self._age_text(now, self.last_valid_solution_rx)
+        diff_age = self._format_optional_float(self.latest_differential_age)
+        heading_text = self._heading_status_text()
+        ntrip_text = self._ntrip_status_text(now)
+        return (
+            f'GPS status: {status} | reason={reason} | '
+            f'GGA q={self.latest_fix_quality}, age={gga_age}, '
+            f'diff_age={diff_age}s | '
+            f'heading={heading_text}, age={heading_age} | '
+            f'last_valid={valid_age} | NTRIP={ntrip_text}'
+        )
+
+    def _runtime_status_reason(self, now):
+        reasons = []
+        if not self.solution_valid and self.solution_reason:
+            reasons.append(self.solution_reason)
+        if self.last_valid_solution_rx is None:
+            reasons.append('no valid navigation solution yet')
+        elif now - self.last_valid_solution_rx > 0.5:
+            reasons.append('valid solution is stale')
+        if self.ntrip is not None:
+            if not self.ntrip.connected:
+                reasons.append('NTRIP disconnected')
+            elif self.ntrip.last_rx_monotonic is None:
+                reasons.append('no RTCM received')
+            elif (
+                now - self.ntrip.last_rx_monotonic
+                > self.double_parameter('ntrip_data_timeout_sec')
+            ):
+                reasons.append('RTCM data timed out')
+        return '; '.join(reasons) if reasons else self.solution_reason
+
+    def _heading_status_text(self):
+        heading = self.latest_heading
+        if heading is None:
+            return 'none'
+        return (
+            f'{heading.solution_status}/{heading.position_type}, '
+            f'std={heading.heading_stddev_deg:.2f}deg, '
+            f'sats={heading.satellites_used}'
+        )
+
+    def _ntrip_status_text(self, now):
+        if self.ntrip is None:
+            return 'disabled'
+        if self.ntrip.last_rx_monotonic is None:
+            age = 'none'
+        else:
+            age = f'{now - self.ntrip.last_rx_monotonic:.1f}s'
+        if self.ntrip.connected:
+            state = 'connected'
+        else:
+            state = f'disconnected:{self.ntrip.error or "unknown"}'
+        return f'{state}, rx_age={age}'
+
+    @staticmethod
+    def _format_optional_float(value):
+        if value is None:
+            return 'none'
+        return f'{value:.2f}'
+
+    @staticmethod
+    def _age_text(now, timestamp):
+        if timestamp is None:
+            return 'none'
+        return f'{now - timestamp:.1f}s'
 
     def warn_limited(self, key, message, period_sec=2.0):
         now = time.monotonic()

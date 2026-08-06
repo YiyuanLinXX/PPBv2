@@ -29,13 +29,15 @@ class LineTrackingConfig:
     max_angular_speed: float = 0.8
     min_forward_ratio: float = 0.2
     max_heading_for_full_speed: float = 0.7
-    max_cross_track_error: float = 3.0
+    max_cross_track_error: float = 0.5
     goal_threshold: float = 0.30
     alignment_threshold: float = 0.10
-    dist_start_threshold: float = 4.0
+    dist_start_threshold: float = 1.0
     dist_stop_threshold: float = 1.0
     initial_speed_ratio: float = 0.3
     stop_speed_ratio: float = 0.0
+    enable_start_slowdown: bool = True
+    enable_goal_slowdown: bool = True
     regulate_target_speed: bool = False
 
 
@@ -95,14 +97,22 @@ class LineTrackingController:
             target_speed = max(abs(lateral_speed) + 1e-3, target_speed)
             target_speed = float(np.sqrt(max(target_speed**2 - lateral_speed**2, 1e-6)))
 
-        if self.config.dist_start_threshold > 1e-6 and dist_from_start < self.config.dist_start_threshold:
+        if (
+            self.config.enable_start_slowdown
+            and self.config.dist_start_threshold > 1e-6
+            and dist_from_start < self.config.dist_start_threshold
+        ):
             start_ratio = dist_from_start / self.config.dist_start_threshold
             target_speed = min(
                 target_speed,
                 self.start_speed + (self.config.target_speed - self.start_speed) * start_ratio
             )
 
-        if self.config.dist_stop_threshold > 1e-6 and dist_to_goal < self.config.dist_stop_threshold:
+        if (
+            self.config.enable_goal_slowdown
+            and self.config.dist_stop_threshold > 1e-6
+            and dist_to_goal < self.config.dist_stop_threshold
+        ):
             stop_ratio = (self.config.dist_stop_threshold - dist_to_goal) / self.config.dist_stop_threshold
             target_speed = min(
                 target_speed,

@@ -2,30 +2,47 @@
 # -*- coding: utf-8 -*-
 """Serial bridge between ROS 2 `/cmd_vel_out` and the Amiga MCU."""
 
-import serial
 import argparse
 
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+import serial
 
 class AmigaCom(Node):
-    def __init__(self, port: str, baud: int):
+    def __init__(self, port: str | None = None, baud: int | None = None):
         super().__init__('amiga_serial_bridge')
-        self.get_logger().info(f'Starting AmigaCom node on port {port} @ {baud}bps')
+        self.declare_parameter(
+            'serial_port',
+            '/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_F6FF0DE648364C53202020542C1B0DFF-if00',
+        )
+        self.declare_parameter('baudrate', 115200)
+        self.declare_parameter('serial_timeout_sec', 1.0)
+        self.declare_parameter('watchdog_timeout_sec', 2.0)
+        self.declare_parameter('watchdog_period_sec', 0.1)
+
+        port = port or str(self.get_parameter('serial_port').value)
+        baud = int(baud if baud is not None else self.get_parameter('baudrate').value)
+        timeout = float(self.get_parameter('serial_timeout_sec').value)
+        watchdog_period = float(self.get_parameter('watchdog_period_sec').value)
+        self.watchdog_timeout = float(self.get_parameter('watchdog_timeout_sec').value)
+
+        self.get_logger().info(
+            f'Starting AmigaCom node on port {port} @ {baud}bps '
+            f'(watchdog={self.watchdog_timeout:.2f}s)'
+        )
 
         # Single serial instance for read & write
-        self.ser = serial.Serial(port, baud, timeout=1)
+        self.ser = serial.Serial(port, baud, timeout=timeout)
 
         # ROS interfaces
         self.cmd_sub  = self.create_subscription(
             Twist, '/cmd_vel_out', self.cmd_vel_callback, 10)
 
         self.last_cmd_time = self.get_clock().now()
-        self.watchdog_timeout = 2.0  # seconds
         self.watchdog_triggered = False
         # Timer at 10 Hz to enforce watchdog and drain MCU feedback
-        self.create_timer(0.1, self.timer_callback)
+        self.create_timer(max(watchdog_period, 0.01), self.timer_callback)
 
     def cmd_vel_callback(self, msg: Twist):
         """
@@ -81,9 +98,9 @@ class AmigaCom(Node):
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--port',      type=str,
-                        default='/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_F6FF0DE648364C53202020542C1B0DFF-if00',
+                        default=None,
                         help='Serial port for MCU communication')
-    parser.add_argument('--baudrate',  type=int, default=115200,
+    parser.add_argument('--baudrate',  type=int, default=None,
                         help='Baudrate for the serial port')
     parsed, unknown = parser.parse_known_args()
 

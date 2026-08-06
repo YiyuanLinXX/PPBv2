@@ -98,7 +98,7 @@ Configure the UM982 receiver, NTRIP connection, antenna geometry, and hardware p
 
 #### 1.1 UM982 and NTRIP
 
-Edit `src/amiga_navigation/config/um982.yaml` and set the stable `serial_port`, `baseline_m`, and all NTRIP connection fields, including `ntrip_password`.
+Edit `src/amiga_navigation/config/bringup.yaml` and set the stable UM982 `serial_port`, `baseline_m`, Feather M4 serial bridge settings, and all NTRIP connection fields, including `ntrip_password`.
 
 Example NTRIP configuration:
 
@@ -143,7 +143,7 @@ Building with `--symlink-install` lets later YAML edits take effect without rebu
 
 ```bash
 ros2 launch amiga_navigation basic_bringup.launch.py \
-  um982_config:="$/home/cairlab/PPBv2_Navigation/src/amiga_navigation/config/um982.yaml"
+  bringup_config:="/home/cairlab/PPBv2_Navigation/src/amiga_navigation/config/bringup.yaml"
 ```
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
@@ -152,10 +152,9 @@ The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEAD
 
 Before running on the robot, update the serial device paths in:
 
-- `src/amiga_navigation/config/um982.yaml` for UM982, baseline, quality limits, and NTRIP.
-- `src/amiga_navigation/amiga_navigation/amiga_serial_bridge.py`, if you want to change the default Feather M4 port.
+- `src/amiga_navigation/config/bringup.yaml` for UM982, baseline, quality limits, NTRIP, GPS status logging, and the Feather M4 CAN serial bridge.
 
-The current launch file uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
+The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
 
 

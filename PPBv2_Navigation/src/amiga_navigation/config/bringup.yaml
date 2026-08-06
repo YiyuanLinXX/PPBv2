@@ -39,6 +39,11 @@ um982_driver:
     max_differential_age_sec: 3.0
     minimum_heading_satellites: 6
 
+    # Terminal GPS status summary. Logs immediately when the solution changes
+    # between OK and NOT FIX, then at this low-rate period while unchanged.
+    gps_status_log_enabled: true
+    gps_status_log_period_sec: 5.0
+
     # Fixed-base NTRIP mountpoint: RTCM is received, rover GGA is not sent.
     ntrip_enabled: true
     # ntrip_host: "use your NTRIP profile address"
@@ -57,3 +62,15 @@ um982_driver:
     ntrip_use_tls: false
     ntrip_socket_timeout_sec: 10.0
     ntrip_data_timeout_sec: 5.0
+
+amiga_serial_bridge:
+  ros__parameters:
+    # Feather M4 CAN USB serial device:
+    # ls -l /dev/serial/by-id/
+    serial_port: "/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_C06A5AE248364C532020205439190DFF-if00"
+    baudrate: 115200
+    serial_timeout_sec: 1.0
+
+    # If /cmd_vel_out stops updating, the bridge sends one stop command.
+    watchdog_timeout_sec: 2.0
+    watchdog_period_sec: 0.1

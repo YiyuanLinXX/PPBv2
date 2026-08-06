@@ -266,7 +266,7 @@ require periodic rover GGA need a deliberate new implementation.
 Primary configuration:
 
 ```text
-src/amiga_navigation/config/um982.yaml
+src/amiga_navigation/config/bringup.yaml
 ```
 
 Important groups:
@@ -293,7 +293,7 @@ with identical non-NTRIP settings. Select one with:
 
 ```bash
 ros2 run amiga_navigation um982_driver --ros-args \
-  --params-file /absolute/path/to/selected_um982.yaml
+  --params-file /absolute/path/to/selected_bringup.yaml
 ```
 
 The checked-in YAML currently contains deployment credentials because it is
@@ -317,14 +317,14 @@ Start the base stack:
 
 ```bash
 ros2 launch amiga_navigation basic_bringup.launch.py \
-  um982_config:="$PWD/src/amiga_navigation/config/um982.yaml"
+  bringup_config:="$PWD/src/amiga_navigation/config/bringup.yaml"
 ```
 
 Or test the UM982 driver alone:
 
 ```bash
 ros2 run amiga_navigation um982_driver --ros-args \
-  --params-file "$PWD/src/amiga_navigation/config/um982.yaml"
+  --params-file "$PWD/src/amiga_navigation/config/bringup.yaml"
 ```
 
 If a normal non-symlink build was previously used, an installed YAML copy may

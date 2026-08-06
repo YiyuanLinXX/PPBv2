@@ -24,6 +24,10 @@ class PurePursuitConfig:
     slowdown_distance: float = 4.0
     max_angular_speed: float = 0.8
     min_forward_ratio: float = 0.2
+    start_slowdown_distance: float = 0.0
+    initial_speed_ratio: float = 0.3
+    enable_start_slowdown: bool = False
+    enable_goal_slowdown: bool = True
     max_cross_track_error: float = 3.0
     goal_threshold: float = 0.30
 
@@ -82,6 +86,11 @@ class PurePursuitController:
             self.config.slowdown_distance,
             self.config.min_forward_ratio,
             alpha,
+            enable_goal_slowdown=self.config.enable_goal_slowdown,
+            dist_from_start=metrics.dist_from_start,
+            start_slowdown_distance=self.config.start_slowdown_distance,
+            initial_speed_ratio=self.config.initial_speed_ratio,
+            enable_start_slowdown=self.config.enable_start_slowdown,
         )
         curvature = 2.0 * np.sin(alpha) / actual_lookahead
         angular_velocity = float(np.clip(linear_velocity * curvature, -self.config.max_angular_speed, self.config.max_angular_speed))

@@ -15,10 +15,10 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     pkg = get_package_share_directory('amiga_navigation')
-    um982_config_argument = DeclareLaunchArgument(
-        'um982_config',
-        default_value=os.path.join(pkg, 'config', 'um982.yaml'),
-        description='Absolute path to the runtime UM982 YAML configuration.',
+    bringup_config_argument = DeclareLaunchArgument(
+        'bringup_config',
+        default_value=os.path.join(pkg, 'config', 'bringup.yaml'),
+        description='Absolute path to the runtime bringup YAML configuration.',
     )
 
     twist_mux = IncludeLaunchDescription(
@@ -39,7 +39,7 @@ def generate_launch_description():
         executable='um982_driver',
         name='um982_driver',
         output='screen',
-        parameters=[LaunchConfiguration('um982_config')],
+        parameters=[LaunchConfiguration('bringup_config')],
     )
 
     rtk_monitor = Node(
@@ -54,17 +54,11 @@ def generate_launch_description():
         executable='amiga_serial_bridge',
         name='amiga_serial_bridge',
         output='screen',
-        arguments=[
-            '--port',
-            (
-                '/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_C06A5AE248364C532020205439190DFF-if00'
-            ),
-            '--baudrate', '115200'
-        ]
+        parameters=[LaunchConfiguration('bringup_config')],
     )
 
     return LaunchDescription([
-        um982_config_argument,
+        bringup_config_argument,
         twist_mux,
         datum_publisher,
         um982_driver,

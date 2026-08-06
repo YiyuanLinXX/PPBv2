@@ -107,10 +107,26 @@ def apply_speed_schedule(
     slowdown_distance: float,
     min_forward_ratio: float,
     heading_error: float,
+    enable_goal_slowdown: bool = True,
+    dist_from_start: float | None = None,
+    start_slowdown_distance: float = 0.0,
+    initial_speed_ratio: float | None = None,
+    enable_start_slowdown: bool = False,
 ) -> float:
     speed = target_speed
 
-    if slowdown_distance > 1e-6 and dist_to_goal < slowdown_distance:
+    if (
+        enable_start_slowdown
+        and dist_from_start is not None
+        and initial_speed_ratio is not None
+        and start_slowdown_distance > 1e-6
+        and dist_from_start < start_slowdown_distance
+    ):
+        ratio = dist_from_start / start_slowdown_distance
+        start_ratio = initial_speed_ratio + (1.0 - initial_speed_ratio) * ratio
+        speed *= max(min_forward_ratio, start_ratio)
+
+    if enable_goal_slowdown and slowdown_distance > 1e-6 and dist_to_goal < slowdown_distance:
         ratio = dist_to_goal / slowdown_distance
         speed *= max(min_forward_ratio, ratio)
 

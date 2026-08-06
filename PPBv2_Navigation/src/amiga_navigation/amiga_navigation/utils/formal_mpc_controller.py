@@ -38,6 +38,10 @@ class FormalMPCConfig:
     progress_weight: float = 1.0
     solver_maxiter: int = 40
     solver_ftol: float = 1e-3
+    start_slowdown_distance: float = 0.0
+    initial_speed_ratio: float = 0.3
+    enable_start_slowdown: bool = False
+    enable_goal_slowdown: bool = True
     max_cross_track_error: float = 3.0
     goal_threshold: float = 0.30
 
@@ -68,6 +72,11 @@ class FormalMPCController:
             self.config.slowdown_distance,
             self.config.min_forward_ratio,
             metrics.heading_error,
+            enable_goal_slowdown=self.config.enable_goal_slowdown,
+            dist_from_start=metrics.dist_from_start,
+            start_slowdown_distance=self.config.start_slowdown_distance,
+            initial_speed_ratio=self.config.initial_speed_ratio,
+            enable_start_slowdown=self.config.enable_start_slowdown,
         )
         control_sequence = self._solve_optimal_sequence(route, pose, desired_speed)
         linear_velocity = float(control_sequence[0])
