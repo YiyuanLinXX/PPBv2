@@ -237,46 +237,67 @@ In another terminal, run the waypoint follower:
 
 The follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.
 
-To choose a controller from the command line:
+> [!IMPORTANT]
+>
+> The waypoint follower stores navigation progress in:
+>
+>    ```text
+> /home/cairlab/navigation_waypoints/status.txt
+> /home/cairlab/navigation_waypoints/last_waypoints.csv
+>    ```
+>
 
-   ```bash
-   ros2 run amiga_navigation waypoint_follower \
-     --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv \
-     --controller pid_line
-   ```
 
-Valid controller choices are:
 
-   ```text
-   pid_line
-   pure_pursuit
-   mpc_rollout
-   mpc_formal
-   row_hybrid
-   ```
-
-The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
-
-The waypoint follower stores navigation progress in:
-
-   ```text
-   /home/cairlab/navigation_waypoints/status.txt
-   /home/cairlab/navigation_waypoints/last_waypoints.csv
-   ```
-
-**The resume mode can be selected with:**
-
-   ```bash
-   ros2 run amiga_navigation waypoint_follower --resume ask
-   ros2 run amiga_navigation waypoint_follower --resume yes
-   ros2 run amiga_navigation waypoint_follower --resume no
-   ```
-
-`--resume` can be combined with `--waypoints` and `--controller` in the same command.
-
-   - `ask`: prompt in an interactive terminal when unfinished navigation is found.
-   - `yes`: automatically continue from `last_waypoints.csv`.
-   - `no`: ignore previous progress and start from the requested waypoint file.
+> [!TIP]
+>
+> **Tip 1. To choose a controller from the command line:**
+>
+>    ```bash
+> ros2 run amiga_navigation waypoint_follower \
+>   --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv \
+>   --controller pid_line
+>    ```
+>
+> Valid controller choices are:
+>
+>    ```text
+> pid_line
+> pure_pursuit
+> mpc_rollout
+> mpc_formal
+> row_hybrid
+>    ```
+>
+> The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
+>
+> 
+>
+> **Tip 2. The resume mode can be selected with:**
+>
+>    ```bash
+> ros2 run amiga_navigation waypoint_follower --resume ask
+> ros2 run amiga_navigation waypoint_follower --resume yes
+> ros2 run amiga_navigation waypoint_follower --resume no
+>    ```
+>
+> Resume mode controls what happens when the follower detects an unfinished previous route. It uses `status.txt` to remember the last reached waypoint index and `last_waypoints.csv` as a snapshot of the route that was being followed.
+>
+> The default resume mode is `ask`. `--resume` can be combined with `--waypoints` and `--controller` in the same command.
+>
+>    - `ask` (default): prompt in an interactive terminal when unfinished navigation is found.
+>    - `yes`: automatically continue from `last_waypoints.csv`.
+>    - `no`: ignore previous progress and start from the requested waypoint file.
+>
+> 
+>
+> **Tip 3. As an additional manual override, users can run `teleop_twist_keyboard` in another terminal:**
+>
+>    ```bash
+> ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_key
+>    ```
+>
+> The `twist_mux` configuration gives `/cmd_vel_key` the highest priority, so keyboard commands override waypoint navigation commands. This is useful for manual control during testing or when the operator needs to take over quickly.
 
 
 
