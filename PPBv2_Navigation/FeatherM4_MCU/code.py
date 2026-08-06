@@ -11,6 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+# This file is derived from farm-ng Feather M4 CAN example code.
+
+# Modified by Yiyuan Lin (yl3663@cornell.edu)
+# Changes include ROS serial command parsing, Feather-side watchdog,
+# compact feedback output, and removal of the original WASD command path.
+
 from canio import Message
 from farm_ng.utils.cobid import CanOpenObject
 from farm_ng.utils.main_loop import MainLoop
