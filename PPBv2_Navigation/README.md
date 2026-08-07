@@ -235,7 +235,7 @@ In another terminal, run the waypoint follower:
    ros2 run amiga_navigation waypoint_follower --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv #replace with your waypoint file path
    ```
 
-The follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.
+**The waypoints follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.**
 
 > [!IMPORTANT]
 >

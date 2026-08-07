@@ -5,7 +5,7 @@
 # -----------------------------------------------------------------------------
 
 # 1. Workspace and environment
-WORKSPACE=~/PPBv2
+WORKSPACE=~/PPBv2/PPBv2_Imaging
 source /opt/ros/humble/setup.bash
 source "$WORKSPACE/install/setup.bash"
 
