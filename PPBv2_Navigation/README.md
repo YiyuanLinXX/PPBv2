@@ -1,8 +1,8 @@
 # PPBv2 Amiga Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on July 26, 2026
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 10, 2026
 
-
+#### 
 
 ## Overview
 
@@ -22,7 +22,7 @@ The package supports multiple waypoint tracking controllers:
 
 <img src="../assets/dual_gps_overview.png" alt="nav_diagram"  />
 
-
+#### 
 
 ## Hardware
 
@@ -32,7 +32,7 @@ The package supports multiple waypoint tracking controllers:
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
 - [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview)
 
-
+#### 
 
 ## Dependencies
 
@@ -90,7 +90,7 @@ The package supports multiple waypoint tracking controllers:
    source ~/.bashrc
    ```
 
-
+#### 
 
 ## Getting Started
 
@@ -117,6 +117,8 @@ Do not commit real NTRIP credentials to a public repository.
 
 `um982_driver` exclusively owns the single full-duplex USB serial connection. It reads GGA and NIHEADINGA while writing RTCM received from the fixed-base NTRIP mountpoint. Published positions represent the geometric midpoint between ANT1 and ANT2, while odometry orientation represents the robot's forward
 direction.
+
+#### 
 
 #### 1.2 Antenna layout
 
@@ -150,6 +152,8 @@ ros2 launch amiga_navigation basic_bringup.launch.py \
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
 
+#### 
+
 #### 1.3 Hardware ports
 
 Before running on the robot, update the serial device paths in:
@@ -158,7 +162,7 @@ Before running on the robot, update the serial device paths in:
 
 The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
-
+#### 
 
 ### 2. Start the base stack without waypoint following
 
@@ -174,7 +178,7 @@ For debug logging, use:
 
 This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
 
-   
+#### 
 
 ### 3. Record waypoints for navigation (optional)
 
@@ -219,7 +223,7 @@ Waypoint CSV format:
    >
    > Waypoints may also be generated using GIS-based tools or any other preferred waypoint collection method. For consistent RTK positioning, ensure that the waypoints are collected using corrections from the same RTK base station used by the robot's GNSS receiver.
 
-   
+####    
 
 ### 4. Run waypoint-based navigation
 
@@ -271,7 +275,7 @@ In another terminal, run the waypoint follower:
 >
 > The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
 >
-> 
+> #### 
 >
 > **Tip 2. The resume mode can be selected with:**
 >
@@ -289,7 +293,7 @@ In another terminal, run the waypoint follower:
 >    - `yes`: automatically continue from `last_waypoints.csv`.
 >    - `no`: ignore previous progress and start from the requested waypoint file.
 >
-> 
+> #### 
 >
 > **Tip 3. As an additional manual override, users can run `teleop_twist_keyboard` in another terminal:**
 >
@@ -299,7 +303,7 @@ In another terminal, run the waypoint follower:
 >
 > The `twist_mux` configuration gives `/cmd_vel_key` the highest priority, so keyboard commands override waypoint navigation commands. This is useful for manual control during testing or when the operator needs to take over quickly.
 
-
+#### 
 
 ## Controller Configuration
 
@@ -321,7 +325,11 @@ Controller behavior:
 | `mpc_formal` | Solves a receding-horizon optimization problem with SciPy SLSQP. | Short connectors or tighter maneuvers. |
 | `row_hybrid` | Switches between `mpc_formal`, `pure_pursuit`, and `pid_line` by segment length. | Routes with both long crop rows and short connectors. |
 
-For `pid_line`, the lateral correction speed is:
+#### 
+
+### PID line tracking (`pid_line`)
+
+The PID controller tracks the infinite line defined by the current waypoint segment. Its lateral correction speed is:
 
 $$
 v_{y,l} = K_p e_y(t) + K_i \int e_y(t)\,dt + K_d \frac{d e_y(t)}{dt}
@@ -335,6 +343,136 @@ The follower combines this lateral correction with forward path speed, converts 
 | `pid_ki` | Remove steady drift to one side. | Reduce slow oscillation or integral wind-up. |
 | `pid_kd` | Dampen oscillation and smooth correction. | Make the response less sluggish. |
 | `heading_gain` | Align the robot heading more aggressively with the path. | Reduce heading-induced oscillation. |
+
+`max_lateral_speed` limits the PID output, while `max_heading_for_full_speed` and `max_cross_track_error` reduce forward speed as tracking error rows. This controller is usually the most stable choice for long, straight crop rows.
+
+#### 
+
+### Pure pursuit (`pure_pursuit`)
+
+Pure pursuit projects the robot onto the current segment and places a target point a lookahead distance farther along that segment. The configured lookahead is proportional to nominal speed and clipped to a safe range:
+
+$$
+L_d = \operatorname{clip}
+\left(v_{target}K_{lookahead},\ L_{min},\ L_{max}\right)
+$$
+
+If $\alpha$ is the heading angle from the robot to the lookahead point, the controller calculates curvature and angular velocity as:
+
+$$
+\kappa = \frac{2\sin(\alpha)}{L_{actual}},
+\qquad
+\omega = \operatorname{clip}(v\kappa,\ -\omega_{max},\ \omega_{max})
+$$
+
+The lookahead point is capped at the segment endpoint. Forward speed is reduced near the start or goal when the shared slowdown options are enabled, and it is also reduced for a large lookahead heading error.
+
+| Parameter | Increase to... | Decrease to... |
+| --- | --- | --- |
+| `pure_pursuit_min_lookahead` | Smooth steering and reduce short-range oscillation. | Follow tighter turns and react sooner to lateral error. |
+| `pure_pursuit_max_lookahead` | Allow smoother tracking at higher speed. | Prevent the controller from looking too far ahead. |
+| `pure_pursuit_lookahead_gain` | Increase lookahead for the same `target_speed`. | Make steering more responsive and less anticipatory. |
+| `pure_pursuit_slowdown_distance` | Begin slowing earlier before a waypoint. | Maintain nominal speed closer to the waypoint. |
+
+Start with `pure_pursuit_min_lookahead`. Increase it if steering oscillates; decrease it if the robot cuts corners or reacts too slowly. Very large lookahead
+values give smooth commands but can leave a persistent cross-track error on short segments.
+
+#### 
+
+### Sampling-based rollout MPC (`mpc_rollout`)
+
+At every control cycle, rollout MPC first applies the shared speed schedule to obtain a base speed. It evaluates three linear-speed scales (`0.35`, `0.6`, and
+`1.0` times the base speed) against evenly spaced angular-velocity candidates from $-\omega_{max}$ to $+\omega_{max}$.
+
+For each candidate pair $(v,\omega)$, the controller predicts the unicycle model for `mpc_horizon_steps`, using `mpc_step_time` for each step. The same $(v,
+\omega)$ pair is held throughout one rollout:
+$$
+x_{k+1}=x_k+v\cos(\psi_k)\Delta t,\qquad
+y_{k+1}=y_k+v\sin(\psi_k)\Delta t
+$$
+
+$$
+\psi_{k+1}=\operatorname{wrap}(\psi_k+\omega\Delta t)
+$$
+
+The evaluated cost is:
+
+$$
+J = \sum_{k=1}^{N}
+\left(w_y|e_{y,k}|+w_\psi|e_{\psi,k}|+w_u|\omega|\right)
++w_g d_{goal,N}-w_p s_N
+$$
+
+where $s_N$ is progress along the segment. The lowest-cost candidate is sent to the robot. This controller has bounded, predictable computation because it does not invoke a nonlinear optimizer.
+
+| Parameter | Increase to... | Decrease to... |
+| --- | --- | --- |
+| `mpc_horizon_steps` | Consider behavior farther into the future. | Reduce computation and make decisions more local. |
+| `mpc_step_time` | Extend predicted time without adding steps. | Use finer, shorter-term prediction. |
+| `mpc_candidate_count` | Search angular velocity more finely. | Reduce computation time. |
+| `mpc_cross_track_weight` | Prioritize returning to the segment centerline. | Permit more lateral deviation. |
+| `mpc_heading_weight` | Prioritize alignment with segment heading. | Allow heading error while pursuing position/progress. |
+| `mpc_goal_distance_weight` | Favor candidates ending closer to the waypoint. | Reduce attraction to the segment endpoint. |
+| `mpc_effort_weight` | Penalize turning and produce gentler commands. | Allow more aggressive angular commands. |
+| `mpc_progress_weight` | Reward forward progress more strongly. | Favor tracking accuracy over progress. |
+| `mpc_slowdown_distance` | Begin slowing earlier before the goal. | Maintain speed closer to the goal. |
+
+The prediction duration is approximately `mpc_horizon_steps * mpc_step_time`. Increasing both horizon length and candidate count raises CPU cost. Tune the tracking weights before enlarging the search.
+
+### Optimization-based MPC (`mpc_formal`)
+
+Formal MPC optimizes a different linear and angular velocity for every step in the prediction horizon:
+
+$$
+U=\{(v_0,\omega_0),\ldots,(v_{N-1},\omega_{N-1})\}
+$$
+
+It uses the same unicycle prediction model as rollout MPC, but solves the bounded nonlinear optimization with SciPy SLSQP. Only the first optimized
+command is applied; at the next control cycle the horizon is solved again. The previous solution is shifted forward as a warm start. If SLSQP fails, the
+controller falls back to that warm-start sequence for the current cycle. Its running cost penalizes squared cross-track error, heading error, normalized
+goal distance, deviation from the scheduled forward speed, angular effort, and step-to-step control changes. It rewards progress along the segment. Separate terminal weights strongly shape the final predicted state:
+$$
+J=\sum_{k=1}^{N}
+\left(
+w_y e_{y,k}^2+w_\psi e_{\psi,k}^2+w_g\bar d_{g,k}^2
++w_v(v_k-v_{desired})^2+w_\omega\omega_k^2
++w_{\Delta v}\Delta v_k^2+w_{\Delta\omega}\Delta\omega_k^2
+-w_p s_k
+\right)+J_{terminal}
+$$
+
+| Parameter | Increase to... | Decrease to... |
+| --- | --- | --- |
+| `formal_mpc_horizon_steps` | Plan farther ahead. | Reduce solver work and latency. |
+| `formal_mpc_step_time` | Cover a longer prediction time per step. | Model motion at finer time resolution. |
+| `formal_mpc_min_forward_speed` | Prevent very slow or stopped solutions. | Allow the optimizer to slow down more for tight maneuvers. |
+| `formal_mpc_cross_track_weight` | Hold the centerline more strongly. | Permit lateral deviation. |
+| `formal_mpc_heading_weight` | Align heading more strongly throughout the horizon. | Give position and progress more influence. |
+| `formal_mpc_goal_distance_weight` | Pull the predicted trajectory toward the waypoint. | Reduce running goal attraction. |
+| `formal_mpc_terminal_*` | Enforce the corresponding error more strongly at the end of the horizon. | Make terminal behavior less dominant. |
+| `formal_mpc_linear_effort_weight` | Stay closer to the scheduled forward speed. | Allow speed changes to improve tracking. |
+| `formal_mpc_angular_effort_weight` | Reduce angular velocity magnitude. | Permit sharper turns. |
+| `formal_mpc_linear_smooth_weight` | Smooth changes in forward speed. | Allow faster acceleration/deceleration changes. |
+| `formal_mpc_angular_smooth_weight` | Smooth steering commands. | Allow angular velocity to change more rapidly. |
+| `formal_mpc_progress_weight` | Favor progress along the segment. | Favor error minimization over forward progress. |
+| `formal_mpc_solver_maxiter` | Give SLSQP more opportunity to converge. | Bound solver time more tightly. |
+| `formal_mpc_solver_ftol` | Use a looser convergence tolerance when increased. | Demand a more precise solution, with potentially more iterations. |
+
+Tune formal MPC at a low `target_speed` first. If the solver is too slow, reduce `formal_mpc_horizon_steps` or `formal_mpc_solver_maxiter`. If commands are jittery, raise the smoothness weights before increasing the horizon.
+
+#### 
+
+### Row hybrid controller (`row_hybrid`)
+
+The hybrid controller chooses an existing controller once per current segment according to its length $L$:
+
+| Segment length | Active controller | Intended behavior |
+| --- | --- | --- |
+| $L \leq$ `row_connector_length_threshold` | `mpc_formal` | Optimize short connectors and tight transitions. |
+| `row_connector_length_threshold` $< L <$ `row_length_threshold` | `pure_pursuit` | Smoothly track medium-length segments. |
+| $L \geq$ `row_length_threshold` | `pid_line` | Track long, straight crop rows efficiently. |
+
+Increase `row_connector_length_threshold` to classify more segments as short MPC connectors. Decrease `row_length_threshold` to classify more segments as long PID-controlled rows. The thresholds must reflect the actual route geometry; the controller does not infer whether a segment is physically a crop row.
 
 > [!IMPORTANT]
 >
