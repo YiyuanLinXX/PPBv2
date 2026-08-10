@@ -343,7 +343,7 @@ The follower combines this lateral correction with forward path speed, converts 
 | `pid_kd` | Dampen oscillation and smooth correction. | Make the response less sluggish. |
 | `heading_gain` | Align the robot heading more aggressively with the path. | Reduce heading-induced oscillation. |
 
-`max_lateral_speed` limits the PID output, while `max_heading_for_full_speed` and `max_cross_track_error` reduce forward speed as tracking error rows. This controller is usually the most stable choice for long, straight crop rows.
+`max_lateral_speed` limits the PID output, while `max_heading_for_full_speed` and `max_cross_track_error` reduce forward speed as tracking error grows. This controller is usually the most stable choice for long, straight crop rows.
 
 
 
@@ -352,8 +352,9 @@ The follower combines this lateral correction with forward path speed, converts 
 Pure pursuit projects the robot onto the current segment and places a target point a lookahead distance farther along that segment. The configured lookahead is proportional to nominal speed and clipped to a safe range:
 
 $$
-L_d = \operatorname{clip}
-\left(v_{target}K_{lookahead},\ L_{min},\ L_{max}\right)
+L_d = \min\left(
+L_{max},\ \max\left(L_{min},\ v_{target}K_{lookahead}\right)
+\right)
 $$
 
 If $\alpha$ is the heading angle from the robot to the lookahead point, the controller calculates curvature and angular velocity as:
@@ -361,7 +362,8 @@ If $\alpha$ is the heading angle from the robot to the lookahead point, the cont
 $$
 \kappa = \frac{2\sin(\alpha)}{L_{actual}},
 \qquad
-\omega = \operatorname{clip}(v\kappa,\ -\omega_{max},\ \omega_{max})
+\omega = \max\left(-\omega_{max},
+\min\left(\omega_{max},\ v\kappa\right)\right)
 $$
 
 The lookahead point is capped at the segment endpoint. Forward speed is reduced near the start or goal when the shared slowdown options are enabled, and it is also reduced for a large lookahead heading error.
@@ -385,13 +387,15 @@ At every control cycle, rollout MPC first applies the shared speed schedule to o
 
 For each candidate pair $(v,\omega)$, the controller predicts the unicycle model for `mpc_horizon_steps`, using `mpc_step_time` for each step. The same $(v,
 \omega)$ pair is held throughout one rollout:
+
 $$
 x_{k+1}=x_k+v\cos(\psi_k)\Delta t,\qquad
 y_{k+1}=y_k+v\sin(\psi_k)\Delta t
 $$
 
 $$
-\psi_{k+1}=\operatorname{wrap}(\psi_k+\omega\Delta t)
+\psi_{k+1}=
+\left((\psi_k+\omega\Delta t+\pi)\bmod 2\pi\right)-\pi
 $$
 
 The evaluated cost is:
