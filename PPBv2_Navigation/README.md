@@ -2,7 +2,7 @@
 
 Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 10, 2026
 
-
+<br>
 
 ## Overview
 
@@ -22,7 +22,7 @@ The package supports multiple waypoint tracking controllers:
 
 <img src="../assets/dual_gps_overview.png" alt="nav_diagram"  />
 
-
+<br>
 
 ## Hardware
 
@@ -32,7 +32,7 @@ The package supports multiple waypoint tracking controllers:
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
 - [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview)
 
-
+<br>
 
 ## Dependencies
 
@@ -90,7 +90,7 @@ The package supports multiple waypoint tracking controllers:
    source ~/.bashrc
    ```
 
-
+<br>
 
 ## Getting Started
 
@@ -117,7 +117,7 @@ Do not commit real NTRIP credentials to a public repository.
 
 `um982_driver` exclusively owns the single full-duplex USB serial connection. It reads GGA and NIHEADINGA while writing RTCM received from the fixed-base NTRIP mountpoint. Published positions represent the geometric midpoint between ANT1 and ANT2, while odometry orientation represents the robot's forward direction.
 
-
+<br>
 
 #### 1.2 Antenna layout
 
@@ -151,7 +151,7 @@ ros2 launch amiga_navigation basic_bringup.launch.py \
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
 
-
+<br>
 
 #### 1.3 Hardware ports
 
@@ -161,7 +161,7 @@ Before running on the robot, update the serial device paths in:
 
 The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
-
+<br>
 
 ### 2. Start the base stack without waypoint following
 
@@ -177,7 +177,7 @@ For debug logging, use:
 
 This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
 
-
+<br>
 
 ### 3. Record waypoints for navigation (optional)
 
@@ -222,7 +222,7 @@ Waypoint CSV format:
    >
    > Waypoints may also be generated using GIS-based tools or any other preferred waypoint collection method. For consistent RTK positioning, ensure that the waypoints are collected using corrections from the same RTK base station used by the robot's GNSS receiver.
 
-
+<br>
 
 ### 4. Run waypoint-based navigation
 
@@ -302,7 +302,7 @@ In another terminal, run the waypoint follower:
 >
 > The `twist_mux` configuration gives `/cmd_vel_key` the highest priority, so keyboard commands override waypoint navigation commands. This is useful for manual control during testing or when the operator needs to take over quickly.
 
-
+<br>
 
 ## Controller Configuration
 
@@ -324,7 +324,7 @@ Controller behavior:
 | `mpc_formal` | Solves a receding-horizon optimization problem with SciPy SLSQP. | Short connectors or tighter maneuvers. |
 | `row_hybrid` | Switches between `mpc_formal`, `pure_pursuit`, and `pid_line` by segment length. | Routes with both long crop rows and short connectors. |
 
-
+<br>
 
 ### PID line tracking (`pid_line`)
 
@@ -345,7 +345,7 @@ The follower combines this lateral correction with forward path speed, converts 
 
 `max_lateral_speed` limits the PID output, while `max_heading_for_full_speed` and `max_cross_track_error` reduce forward speed as tracking error grows. This controller is usually the most stable choice for long, straight crop rows.
 
-
+<br>
 
 ### Pure pursuit (`pure_pursuit`)
 
@@ -378,7 +378,7 @@ The lookahead point is capped at the segment endpoint. Forward speed is reduced 
 Start with `pure_pursuit_min_lookahead`. Increase it if steering oscillates; decrease it if the robot cuts corners or reacts too slowly. Very large lookahead
 values give smooth commands but can leave a persistent cross-track error on short segments.
 
-
+<br>
 
 ### Sampling-based rollout MPC (`mpc_rollout`)
 
@@ -422,7 +422,7 @@ where $s_N$ is progress along the segment. The lowest-cost candidate is sent to 
 
 The prediction duration is approximately `mpc_horizon_steps * mpc_step_time`. Increasing both horizon length and candidate count raises CPU cost. Tune the tracking weights before enlarging the search.
 
-
+<br>
 
 ### Optimization-based MPC (`mpc_formal`)
 
@@ -465,7 +465,7 @@ $$
 
 Tune formal MPC at a low `target_speed` first. If the solver is too slow, reduce `formal_mpc_horizon_steps` or `formal_mpc_solver_maxiter`. If commands are jittery, raise the smoothness weights before increasing the horizon.
 
-
+<br>
 
 ### Row hybrid controller (`row_hybrid`)
 
@@ -501,7 +501,7 @@ Increase `row_connector_length_threshold` to classify more segments as short MPC
 >
 > Controller-specific parameter names are grouped in the same YAML file by prefix, such as `pid_*`, `pure_pursuit_*`, `mpc_*`, `formal_mpc_*`, and `row_*`.
 
-
+<br>
 
 ## Logging and Debugging
 
@@ -537,7 +537,7 @@ ros2 topic echo /cmd_vel_nav
 ros2 topic echo /cmd_vel_out
 ```
 
-
+<br>
 
 ## Feather M4 MCU
 
@@ -563,7 +563,7 @@ Example:
 0.500000,0.100000
 ```
 
-
+<br>
 
 ## Safety Notes
 
@@ -574,7 +574,7 @@ Example:
 - The serial bridge has a watchdog that sends a stop command if `/cmd_vel_out` stops updating.
 - Always test controller changes in an open area before running between rows.
 
-
+<br>
 
 ## Maintenance
 
