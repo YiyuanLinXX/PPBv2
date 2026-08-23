@@ -123,6 +123,8 @@ Camera parameters are clamped to the ranges reported by each camera. Required tr
 
 The imaging GPS publisher configures `GPGGA` and `UNIHEADINGA` on its selected UM982 serial port. It can run alongside Navigation when the two processes use different physical UM982 ports. Configure distinct stable `/dev/serial/by-id/` paths and keep their baseline/layout parameters consistent.
 
+The Orin Imaging code does **NOT** connect to an NTRIP caster or send RTCM correction data to the UM982. RTK corrections are provided by `um982_driver` in `PPBv2_Navigation` running on the Raspberry Pi. That driver receives RTCM from the base station through NTRIP and writes it to one serial port of the same UM982. The UM982 performs the RTK solution internally, so the Orin can read the corrected GGA and heading solution from another UM982 serial port. Merely running the Imaging code does not guarantee RTK Fixed; the Raspberry Pi Navigation driver and its NTRIP connection must also be running. In the CSV files, use `Fix Quality = 4` and `Dual Solution Valid = 1` to identify valid RTK Fixed position-and-heading samples.
+
 Select the dedicated Imaging port without editing the script:
 
 ```bash
