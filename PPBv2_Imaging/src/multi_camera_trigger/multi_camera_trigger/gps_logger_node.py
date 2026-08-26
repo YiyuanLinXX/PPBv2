@@ -6,6 +6,7 @@ import json
 import os
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -175,7 +176,10 @@ def main(args=None):
         node = GpsLogger()
         if node.initialized and rclpy.ok():
             success = True
-            rclpy.spin(node)
+            try:
+                rclpy.spin(node)
+            except ExternalShutdownException:
+                pass
     finally:
         if node is not None:
             node.destroy_node()

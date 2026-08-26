@@ -8,6 +8,7 @@ import time
 
 import rclpy
 import serial
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix, NavSatStatus
 from std_msgs.msg import Float64, String
@@ -408,7 +409,10 @@ def main(args=None):
         node = GpsPublisher()
         if node.initialized and rclpy.ok():
             success = True
-            rclpy.spin(node)
+            try:
+                rclpy.spin(node)
+            except ExternalShutdownException:
+                pass
     finally:
         if node is not None:
             node.destroy_node()

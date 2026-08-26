@@ -275,6 +275,9 @@ class Um982Driver(Node):
             'minimum_heading_satellites': 6,
             'configure_receiver_on_start': True,
             'receiver_output_period_sec': 0.1,
+            'receiver_output_ports': ['COM1', 'COM2', 'COM3'],
+            'receiver_port_baudrate': 115200,
+            'receiver_enable_gpths': True,
             'ntrip_enabled': True,
             'ntrip_host': '',
             'ntrip_port': 2101,
@@ -297,23 +300,51 @@ class Um982Driver(Node):
             1, round(self.double_parameter('baseline_tolerance_m') * 100.0)
         )
         period = self.double_parameter('receiver_output_period_sec')
+        output_ports = self._receiver_output_ports()
+        port_baudrate = self.integer_parameter('receiver_port_baudrate')
         commands = [
             'UNLOG',
             'MODE ROVER',
             'CONFIG HEADING FIXLENGTH',
             f'CONFIG HEADING LENGTH {baseline_cm} {tolerance_cm}',
-            f'GPGGA {period:g}',
-            f'UNIHEADINGA {period:g}',
-            'SAVECONFIG',
         ]
+        for port in output_ports:
+            commands.extend([
+                f'CONFIG {port} {port_baudrate} 8 N 1',
+                f'GPGGA {port} {period:g}',
+                f'UNIHEADINGA {port} {period:g}',
+            ])
+            if self.bool_parameter('receiver_enable_gpths'):
+                commands.append(f'GPTHS {port} {period:g}')
+        commands.append('SAVECONFIG')
         for command in commands:
             self.serial_port.write(f'{command}\r\n'.encode('ascii'))
             time.sleep(0.03)
         self.serial_port.flush()
         self.get_logger().info(
-            'Configured UM982 rover, fixed heading baseline, GGA and '
-            'UNIHEADINGA output on the connected port.'
+            'Configured UM982 rover, fixed heading baseline, and GNSS/'
+            f'heading output on {", ".join(output_ports)} at '
+            f'{port_baudrate} bps.'
         )
+
+    def _receiver_output_ports(self):
+        supported_ports = {'COM1', 'COM2', 'COM3'}
+        configured_ports = self.get_parameter(
+            'receiver_output_ports'
+        ).value
+        ports = []
+        for configured_port in configured_ports:
+            port = str(configured_port).upper()
+            if port not in supported_ports:
+                raise ValueError(
+                    'receiver_output_ports contains unsupported port '
+                    f'{configured_port!r}; use COM1, COM2, and/or COM3'
+                )
+            if port not in ports:
+                ports.append(port)
+        if not ports:
+            raise ValueError('receiver_output_ports must not be empty')
+        return ports
 
     def string_parameter(self, name):
         return self.get_parameter(name).value

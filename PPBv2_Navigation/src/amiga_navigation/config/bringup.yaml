@@ -7,8 +7,8 @@ um982_driver:
 
     # ANT1 is the master-position antenna; ANT2 is the heading/slave antenna.
     # baseline_m is the measured ANT1-to-ANT2 distance in metres.
-    baseline_m: 1.28
-    baseline_tolerance_m: 0.1
+    baseline_m: 1.18
+    baseline_tolerance_m: 0.05
 
     # ANT1-to-ANT2 direction relative to the robot's forward direction,
     # viewed from above. Positive angles turn clockwise toward robot-right.
@@ -20,7 +20,7 @@ um982_driver:
     #
     # Change this value when the antenna layout changes; no code change is
     # required. The driver still computes position at the antenna midpoint.
-    antenna_baseline_angle_deg: 0.0
+    antenna_baseline_angle_deg: -90.0
 
     # Optional small compass-heading calibration applied after layout
     # compensation. Normally leave this at zero.
@@ -31,6 +31,15 @@ um982_driver:
     pitch_multiplier: 1.0
     configure_receiver_on_start: true
     receiver_output_period_sec: 0.1
+
+    # Configure every UM982 hardware UART whenever this driver starts.
+    # The Type-C connection used by this driver is one receiver port; the
+    # exposed TXD/RXD and TX2/RX2 headers are the other ports. GPGGA and
+    # UNIHEADINGA are enabled on every listed port. GPTHS additionally gives
+    # the Orin a simple NMEA heading sentence.
+    receiver_output_ports: ["COM1", "COM2", "COM3"]
+    receiver_port_baudrate: 115200
+    receiver_enable_gpths: true
 
     # A navigation pose is valid only when all thresholds pass.
     max_heading_stddev_deg: 1.0
@@ -51,9 +60,9 @@ um982_driver:
     # ntrip_mountpoint: "use your NTRIP mountpoint"
     # ntrip_username: "use your NTRIP profile username"
     # ntrip_password: "use your NTRIP profile password"
-    ntrip_host: "192.168.1.88" #local NTRIP
-    ntrip_port: 2101
-    ntrip_mountpoint: "REACH"
+    ntrip_host: "192.168.2.88"
+    ntrip_port: 2001
+    ntrip_mountpoint: "emlidreach"
     ntrip_username: "reach"
     ntrip_password: "emlidreach"
     # NTRIP v1 (ICY) and v2 (HTTP) responses are accepted automatically.

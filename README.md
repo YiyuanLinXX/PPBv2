@@ -1,6 +1,6 @@
 # PPBv2
 
-Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 23, 2026
+Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 25, 2026
 
 ---
 
@@ -41,6 +41,16 @@ The navigation stack is deployed on a Raspberry Pi 5 running Ubuntu 24.04 and RO
 This is the ROS 2 package for synchronized multi-camera image triggering, GPS data logging, and external strobe light control for high-throughput  phenotyping. The codebase is deployed on NVIDIA Jetson AGX Orin with ROS2 Humble.
 
 For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imaging/README.md).
+
+<br>
+
+## Citation
+
+If you find this work useful for your research, please consider citing our work:
+
+```bibtex
+Citation information will be updated upon publication.
+```
 
 <br>
 

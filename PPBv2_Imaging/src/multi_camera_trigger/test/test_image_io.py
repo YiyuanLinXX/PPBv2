@@ -34,6 +34,7 @@ def test_save_rgb_image(image_format, tmp_path):
         height=2,
         image_format=image_format,
         jpeg_quality=100,
+        jpeg_subsampling=2,
     )
 
     with Image.open(output) as image:

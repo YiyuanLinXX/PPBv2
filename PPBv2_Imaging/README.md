@@ -1,6 +1,6 @@
 # PPBv2 Imaging
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 10, 2026
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 25, 2026
 
 
 
@@ -39,25 +39,39 @@ ROS 2 Humble package for synchronized multi-camera triggering, RGB/raw image rec
 
 ## Build and run
 
-0. Upload the current `Arduino/Strobe_Light_Serial_Trigger_Init.ino` sketch to Arduino before running. The sketch contains a safety watchdog: after acquisition starts, it stops the strobe and camera trigger if the Jetson heartbeat is absent for two seconds.
+0. Upload the current `Arduino/Strobe_Light_Serial_Trigger_Init.ino` sketch to Arduino before running. The sketch contains a safety watchdog: while either operating mode is active, it stops all outputs if the Jetson heartbeat is absent for two seconds.
+
+    > [!NOTE]
+    >
+    > The Arduino serial commands are `s` for synchronized strobe and camera triggering, `l` for standalone strobe operation without camera triggering,`h` for the watchdog heartbeat, and `e` to stop all outputs.
+    >
+    > Camera/strobe triggers retain the hardware-verified blocking pulse sequence. The charge delay is compensated so the complete cycle is approximately 500 ms (2 Hz).
+    >
+    > Set `cameraPin` at the top of the sketch to match each robot's wiring. The default is pin 10. The ROS node requires a generic `PPBV2_TRIGGER` handshake before acquisition starts, which detects an incompatible sketch or incorrect runtime serial port without tying the protocol to a particular robot or pin.
+
+    <br>
 
 1. Build the workspace:
 
    ```bash
-   cd PPBv2_Imaging
+   cd ~/PPBv2/PPBv2_Imaging
    colcon build --symlink-install
    source install/setup.bash
    ```
 
+   <br>
+
 2. Edit the `PPBv2_Imaging.bash` file to configure your serial port, white balance parameters and GNSS receiver setup.
+
+   <br>
 
 3. Launch the data acquisition by running:
 
    ```bash
-   x bash PPBv2_Imaging.bash
+   bash ~/PPBv2_Imaging.bash
    ```
 
-   The script prompts for a new output folder and an image format. It refuses to reuse an existing output folder. Press `Ctrl+C` to stop all nodes.
+   The script prompts for a new output folder. JPEG is the default image format, and the script refuses to reuse an existing output folder. Press `Ctrl+C` to stop all nodes.
 
    The data root defaults to `/media/Data/cairlab`. It can be changed without editing the script:
 
@@ -77,11 +91,17 @@ ROS 2 Humble package for synchronized multi-camera triggering, RGB/raw image rec
 
 | Value | Pixel data | Compression | Intended use |
 | --- | --- | --- | --- |
-| `png` | RGB | Lossless | Default; analysis-ready images |
-| `jpg` or `jpeg` | RGB | Lossy | Smaller files and faster transfer |
+| `jpg` or `jpeg` | RGB | Lossy | Default; configured for real-time 2 FPS acquisition |
+| `png` | RGB | Lossless | Analysis-ready, but too slow for full-resolution 2 FPS acquisition |
 | `pgm` | BayerRG8 (RGGB) | Uncompressed | Original raw sensor mosaic |
 
-For PNG and JPEG, PySpin performs BayerRG8-to-RGB conversion before the image is written. Frames from different cameras are compressed in parallel, and image files are committed with an atomic rename, reducing the chance that an interrupted run leaves a partial file with a normal filename.
+For PNG and JPEG, PySpin performs BayerRG8-to-RGB conversion before the image is written. Each camera has an ordered background writer, and image files are committed with an atomic rename, reducing the chance that an interrupted run leaves a partial file with a normal filename. The bounded writer queue prevents an unsupported format from consuming memory indefinitely.
+
+JPEG defaults to quality 95 with 4:2:0 chroma subsampling. Selecting PNG displays a performance warning and requires confirmation. For unattended PNG runs, set `ALLOW_SLOW_PNG=1` only when the reduced acquisition rate is acceptable.
+
+The measured CPU JPEG throughput is about 2.48 full-resolution batches/s for two cameras, but only about 1.12 batches/s for four cameras. Four-camera 2 FPS operation therefore requires additional optimization such as NVIDIA hardware JPEG encoding, reduced resolution, selective image saving, or raw Bayer recording. The node warns at startup when more than two full-resolution JPEG cameras are detected and reports whenever the bounded save queue fills.
+
+The launcher confines ROS 2 discovery to localhost on a dedicated domain and applies an 8 GiB address-space limit to each process. This prevents unrelated LAN DDS participants or a faulty allocation from exhausting system memory. Each node runs in its own process group; if GPS logging, GPS publishing, camera acquisition, or Arduino control exits unexpectedly, the launcher stops the complete acquisition.
 
 <br>
 
@@ -90,9 +110,13 @@ For PNG and JPEG, PySpin performs BayerRG8-to-RGB conversion before the image is
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `output_dir` | string | `/tmp` | Root directory for images and CSV files |
-| `image_format` | string | `png` | `png`, `jpg`/`jpeg`, or `pgm` |
+| `image_format` | string | `jpg` | `png`, `jpg`/`jpeg`, or `pgm` |
 | `jpeg_quality` | int | `95` | JPEG quality, 1–100 |
+| `jpeg_subsampling` | int | `2` | JPEG chroma sampling: 0=4:4:4, 1=4:2:2, 2=4:2:0 |
 | `png_compress_level` | int | `3` | PNG compression, 0–9 |
+| `save_queue_depth` | int | `4` | Maximum synchronized camera batches waiting for background writers |
+| `timestamp_recalibration_sec` | float | `60.0` | Camera-to-ROS timestamp latch recalibration period |
+| `camera_max_consecutive_failures` | int | `5` | Stop safely after this many consecutive camera acquisition failures |
 | `overwrite_existing` | bool | `false` | Explicitly allow existing camera output |
 | `arduino_port` | string | `/dev/ttyACM0` | Arduino serial port |
 | `arduino_baud` | int | `9600` | Arduino baud rate |
@@ -103,11 +127,14 @@ For PNG and JPEG, PySpin performs BayerRG8-to-RGB conversion before the image is
 | `wb_red` | float | `1.34` | Manual red white-balance ratio |
 | `wb_blue` | float | `2.98` | Manual blue white-balance ratio |
 | `gps_match_max_age_sec` | float | `0.25` | Maximum frame-to-GPS ROS-time delta |
+| `gps_failure_abort_sec` | float | `3.0` | Stop acquisition when fresh GPS data is unavailable this long |
+| `status_log_every_n_frames` | int | `20` | Per-camera status-log interval; the first frame is always logged |
 | `camera_timeout_ms` | int | `1000` | Per-camera frame timeout |
 | `resync_max_attempts` | int | `3` | Maximum cross-camera resync passes |
 | `resync_max_drop_frames` | int | `10` | Maximum frames discarded in one resync |
 | `resync_timeout_sec` | float | `4.0` | Resync wall-clock time limit |
-| `baseline_m` | float | `1.28` | Measured UM982 ANT1-to-ANT2 distance |
+| `cross_camera_sync_tolerance_ms` | float | `20.0` | Maximum exposure-time difference in a synchronized batch |
+| `baseline_m` | float | `1.18` | Measured UM982 ANT1-to-ANT2 distance |
 | `baseline_tolerance_m` | float | `0.1` | Allowed reported-baseline error |
 | `antenna_baseline_angle_deg` | float | `0.0` | ANT1-to-ANT2 angle relative to robot forward |
 | `heading_offset_deg` | float | `0.0` | Fine robot-heading calibration |
@@ -165,18 +192,24 @@ output_dir/
 The extension follows `image_format`. Each per-camera CSV contains:
 
 ```text
-Frame ID, Image File, Computer Time, ROS Time Stamp(s.ns), Chunk Frame ID,
-Chunk Time(ns), Satellite UTC, GPS ROS Time(s.ns), GPS Match Delta(s),
+Frame ID, Image File, Computer Time, Host Receive ROS Time(s.ns),
+Estimated Exposure Computer Time, Estimated Exposure ROS Time(s.ns),
+Exposure Time Source, Chunk Frame ID, Chunk Time(ns),
+Chunk Timestamp Raw(PySpin ns), Chunk Tick Period(ns),
+Timestamp Calibration Uncertainty(ms), Satellite UTC,
+GPS ROS Time(s.ns), GPS Match Delta(s),
 Midpoint Latitude, Midpoint Longitude, Midpoint Altitude, Midpoint Computed,
 FixQuality, Differential Age(s),
 Baseline Heading(deg), Robot Heading(deg), Pitch(deg), Heading StdDev(deg),
 Pitch StdDev(deg), Heading Baseline(m), Heading Satellites Tracked,
 Heading Satellites Used, Heading Solution Status, Heading Position Type,
 Heading ROS Time(s.ns), GGA-Heading Delta(s), Frame-Heading Delta(s),
-Heading Valid, Dual Solution Valid, Dual Solution Reason, CrossCameraSyncOk
+Heading Valid, Dual Solution Valid, Dual Solution Reason, CrossCameraSyncOk,
+CrossCameraExposureDelta(ms)
 ```
 
-`CrossCameraSyncOk` is `1` when all saved frames in the batch had the same camera Chunk Frame ID. GPS fields are blank when no sample falls within `gps_match_max_age_sec`.
+The raw camera timestamp is always retained. At startup and every 60 seconds, the node uses the camera `TimestampLatch` command to estimate the offset between the camera clock and ROS time. GPS matching uses the calibrated exposure time; if timestamp latching is unavailable, `Exposure Time Source` explicitly reports `host_receive_fallback`. `CrossCameraSyncOk` is `1` when the calibrated exposure times in a saved batch differ by no more than
+`cross_camera_sync_tolerance_ms`; absolute camera Chunk Frame IDs are retained for diagnostics but are not expected to match. GPS fields are temporarily blank when no sample falls within `gps_match_max_age_sec`; the entire acquisition stops if fresh GPS data remains unavailable for `gps_failure_abort_sec`.
 
 The root `gps_log.csv` records the same UM982 diagnostics but includes both `ANT1 Latitude/Longitude/Altitude` and `Midpoint Latitude/Longitude/Altitude`. `Midpoint Computed` distinguishes a computed coordinate from a blank row; use `Dual Solution Valid=1` when selecting high-confidence RTK position-and-heading samples.
 

@@ -28,6 +28,7 @@ def save_frame_atomic(
     height: int,
     image_format: str,
     jpeg_quality: int = 95,
+    jpeg_subsampling: int = 2,
     png_compress_level: int = 3,
 ) -> None:
     """Write one Bayer PGM or RGB PNG/JPEG frame using an atomic rename."""
@@ -63,7 +64,7 @@ def save_frame_atomic(
                     temporary,
                     format='JPEG',
                     quality=jpeg_quality,
-                    subsampling=0,
+                    subsampling=jpeg_subsampling,
                 )
         os.replace(temporary, destination)
     except Exception:
