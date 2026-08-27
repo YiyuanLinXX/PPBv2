@@ -1,6 +1,6 @@
 # PPBv2 Amiga Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 10, 2026
+Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 26, 2026
 
 <br>
 
@@ -151,7 +151,7 @@ ros2 launch amiga_navigation basic_bringup.launch.py \
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
 
-<br>
+<br> 
 
 #### 1.3 Hardware ports
 
@@ -159,7 +159,7 @@ Before running on the robot, update the serial device paths in:
 
 - `src/amiga_navigation/config/bringup.yaml` for UM982, baseline, quality limits, NTRIP, GPS status logging, and the Feather M4 CAN serial bridge.
 
-The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
+The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4 CAN. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
 
 <br>
 

@@ -4,8 +4,8 @@
   <name>amiga_navigation</name>
   <version>0.0.0</version>
   <description>Dual-antenna UM982 RTK waypoint navigation for the Farm-ng Amiga robot.</description>
-  <maintainer email="cairlab@todo.todo">cairlab</maintainer>
-  <license>TODO: License declaration</license>
+  <maintainer email="yl3663@cornell.edu">Yiyuan Lin</maintainer>
+  <license>MIT</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
