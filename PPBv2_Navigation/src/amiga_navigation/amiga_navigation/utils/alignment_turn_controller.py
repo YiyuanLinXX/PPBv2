@@ -12,7 +12,7 @@ from amiga_navigation.utils.tracking_geometry import compute_path_angle, normali
 class TurnConfig:
     alignment_threshold: float = 0.10
     gain: float = 1.2
-    min_turn_speed: float = 0.15
+    min_turn_speed: float = 0.3
     max_turn_speed: float = 0.6
     enable_slowdown_near_target: bool = False
     slowdown_angle: float = 0.35

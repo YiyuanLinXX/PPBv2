@@ -37,6 +37,23 @@
     status_path: /home/cairlab/navigation_waypoints/status.txt
     last_waypoints_path: /home/cairlab/navigation_waypoints/last_waypoints.csv
     controller_type: pid_line # options: pid_line, pure_pursuit, mpc_rollout, mpc_formal, row_hybrid
+    # Safety watchdogs latch a zero command when fresh odometry values do not
+    # actually respond to motion commands or the waypoint stops getting closer.
+    # Restart waypoint_follower after inspecting the cause of a latched stop.
+    progress_watchdog_enabled: true
+    min_segment_length_m: 0.05
+    command_max_linear_speed: 2.0
+    command_max_angular_speed: 1.5
+    alignment_max_duration_sec: 15.0
+    alignment_progress_timeout_sec: 15.0
+    alignment_min_progress_rad: 0.05
+    tracking_progress_timeout_sec: 10.0
+    tracking_min_progress_m: 0.15
+    motion_response_timeout_sec: 15.0
+    motion_min_translation_m: 0.05
+    motion_min_rotation_rad: 0.05
+    watchdog_command_min_linear_mps: 0.05
+    watchdog_command_min_angular_rps: 0.08
     target_speed: 1.0
     max_angular_speed: 0.65
     min_forward_ratio: 0.2

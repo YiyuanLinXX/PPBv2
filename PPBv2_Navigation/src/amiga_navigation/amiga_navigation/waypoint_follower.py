@@ -35,6 +35,11 @@ from amiga_navigation.utils.tracking_controller_factory import (
     build_tracking_controller,
 )
 from amiga_navigation.utils.alignment_turn_controller import TurnConfig, TurnCommand, compute_turn_command
+from amiga_navigation.utils.navigation_safety import (
+    NavigationProgressWatchdog,
+    NavigationWatchdogConfig,
+    validate_velocity_command,
+)
 
 
 DEFAULT_WAYPOINTS_PATH = '/home/cairlab/navigation_waypoints/latest_waypoints.csv'
@@ -61,6 +66,10 @@ class WaypointFollower(Node):
         self.terminal_status_period_sec = self._get_float('terminal_status_period_sec')
         self.terminal_show_alignment_details = self._get_bool('terminal_show_alignment_details')
         self.terminal_show_tracking_details = self._get_bool('terminal_show_tracking_details')
+        self.progress_watchdog_enabled = self._get_bool('progress_watchdog_enabled')
+        self.min_segment_length_m = self._get_float('min_segment_length_m')
+        self.command_max_linear_speed = self._get_float('command_max_linear_speed')
+        self.command_max_angular_speed = self._get_float('command_max_angular_speed')
 
         self.log_directory = Path(self._get_str('log_directory'))
         self.log_directory.mkdir(parents=True, exist_ok=True)
@@ -169,6 +178,20 @@ class WaypointFollower(Node):
             connector_length_threshold=self._get_float('row_connector_length_threshold'),
             row_length_threshold=self._get_float('row_length_threshold'),
         )
+        self.progress_watchdog = NavigationProgressWatchdog(
+            NavigationWatchdogConfig(
+                alignment_max_duration_sec=self._get_float('alignment_max_duration_sec'),
+                alignment_progress_timeout_sec=self._get_float('alignment_progress_timeout_sec'),
+                alignment_min_progress_rad=self._get_float('alignment_min_progress_rad'),
+                tracking_progress_timeout_sec=self._get_float('tracking_progress_timeout_sec'),
+                tracking_min_progress_m=self._get_float('tracking_min_progress_m'),
+                motion_response_timeout_sec=self._get_float('motion_response_timeout_sec'),
+                motion_min_translation_m=self._get_float('motion_min_translation_m'),
+                motion_min_rotation_rad=self._get_float('motion_min_rotation_rad'),
+                command_min_linear_mps=self._get_float('watchdog_command_min_linear_mps'),
+                command_min_angular_rps=self._get_float('watchdog_command_min_angular_rps'),
+            )
+        )
 
         self.controller = build_tracking_controller(
             controller_type=self.selected_controller_type,
@@ -181,6 +204,7 @@ class WaypointFollower(Node):
         self._log_controller_configuration()
 
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel_nav', 10)
+        self.safety_stop_pub = self.create_publisher(Twist, '/cmd_vel_stop', 10)
         self.debug_pub = self.create_publisher(String, '/nav/controller_debug', 10)
         self.create_subscription(Odometry, '/robot/odom', self.odom_callback, qos_profile_sensor_data)
         datum_qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -192,6 +216,7 @@ class WaypointFollower(Node):
         self.pose = None
         self.last_odom_time = None
         self.last_odom_warn_time = None
+        self.last_invalid_odom_warn_time = None
         self.last_debug_publish_time = None
         self.last_terminal_status_time = None
         self.transformer = None
@@ -203,6 +228,7 @@ class WaypointFollower(Node):
         self.current_route = None
         self.last_segment_key = None
         self.active_controller_name = self.selected_controller_type
+        self.safety_fault_reason = None
 
         self.waypoints_gps = self.load_csv_waypoints(self.csv_path)
         self.waypoints_enu = []
@@ -227,6 +253,20 @@ class WaypointFollower(Node):
         self.declare_parameter('status_path', '/home/cairlab/navigation_waypoints/status.txt')
         self.declare_parameter('last_waypoints_path', '/home/cairlab/navigation_waypoints/last_waypoints.csv')
         self.declare_parameter('controller_type', 'pid_line')
+        self.declare_parameter('progress_watchdog_enabled', True)
+        self.declare_parameter('min_segment_length_m', 0.05)
+        self.declare_parameter('command_max_linear_speed', 2.0)
+        self.declare_parameter('command_max_angular_speed', 1.5)
+        self.declare_parameter('alignment_max_duration_sec', 15.0)
+        self.declare_parameter('alignment_progress_timeout_sec', 15.0)
+        self.declare_parameter('alignment_min_progress_rad', 0.05)
+        self.declare_parameter('tracking_progress_timeout_sec', 10.0)
+        self.declare_parameter('tracking_min_progress_m', 0.15)
+        self.declare_parameter('motion_response_timeout_sec', 15.0)
+        self.declare_parameter('motion_min_translation_m', 0.05)
+        self.declare_parameter('motion_min_rotation_rad', 0.05)
+        self.declare_parameter('watchdog_command_min_linear_mps', 0.05)
+        self.declare_parameter('watchdog_command_min_angular_rps', 0.08)
 
         self.declare_parameter('target_speed', 0.85)
         self.declare_parameter('max_lateral_speed', 0.4)
@@ -249,7 +289,7 @@ class WaypointFollower(Node):
         self.declare_parameter('enable_goal_slowdown', True)
         self.declare_parameter('regulate_target_speed', True)
         self.declare_parameter('turn_gain', 0.7)
-        self.declare_parameter('turn_min_speed', 0.14)
+        self.declare_parameter('turn_min_speed', 0.3)
         self.declare_parameter('turn_max_speed', 0.4)
         self.declare_parameter('turn_enable_slowdown_near_target', False)
         self.declare_parameter('turn_slowdown_angle', 0.35)
@@ -563,6 +603,24 @@ class WaypointFollower(Node):
     def odom_callback(self, msg):
         pos = msg.pose.pose.position
         ori = msg.pose.pose.orientation
+        pose_values = (pos.x, pos.y, ori.x, ori.y, ori.z, ori.w)
+        quaternion_norm = math.sqrt(
+            ori.x * ori.x + ori.y * ori.y + ori.z * ori.z + ori.w * ori.w
+        )
+        if (
+            not all(math.isfinite(value) for value in pose_values)
+            or quaternion_norm < 1e-6
+        ):
+            now = self.get_clock().now()
+            if (
+                self.last_invalid_odom_warn_time is None
+                or (now - self.last_invalid_odom_warn_time).nanoseconds > int(2e9)
+            ):
+                self.get_logger().error(
+                    'Rejected /robot/odom containing non-finite values or an invalid quaternion.'
+                )
+                self.last_invalid_odom_warn_time = now
+            return
         yaw = self.quaternion_to_yaw(ori.x, ori.y, ori.z, ori.w)
         self.pose = [pos.x, pos.y, yaw]
         self.last_odom_time = self.get_clock().now()
@@ -581,10 +639,23 @@ class WaypointFollower(Node):
 
     def control_loop(self):
         if self.reached_final:
+            self._publish_stop()
+            return
+
+        if self.safety_fault_reason is not None:
+            self._set_phase('safety_stop', controller_name='safety_watchdog')
+            self._publish_stop()
+            self._publish_high_priority_stop()
+            self._publish_debug({
+                'reason': 'safety_stop',
+                'message': self.safety_fault_reason,
+                **self._build_debug_snapshot(error_message=self.safety_fault_reason),
+            })
             return
 
         if self.pose is None or self.transformer is None or not self.init_pose_inserted:
             self._set_phase('waiting_for_pose', controller_name='waiting_for_pose')
+            self._publish_stop()
             return
 
         if not self._odom_is_fresh():
@@ -611,6 +682,22 @@ class WaypointFollower(Node):
             self.waypoints_enu[self.current_index + 1],
         ]
         self._maybe_log_segment_start()
+        segment_metrics = compute_segment_metrics(self.current_route, self.pose)
+        if segment_metrics.segment_length < self.min_segment_length_m:
+            self.get_logger().warning(
+                f'Skipping degenerate waypoint segment {self.current_index} -> '
+                f'{self.current_index + 1} (length={segment_metrics.segment_length:.3f} m).'
+            )
+            self._advance_waypoint('degenerate_segment')
+            self._publish_stop()
+            return
+
+        # Do not rotate toward a waypoint that has already been reached or
+        # passed. This also avoids an arbitrary zero turn on duplicate points.
+        if is_goal_reached(self.current_route, self.pose, self.tracking_config.goal_threshold):
+            self._advance_waypoint('already_reached')
+            self._publish_stop()
+            return
 
         if not self.segment_aligned:
             turn_command = compute_turn_command(self.current_route, self.pose, self.turn_config)
@@ -620,6 +707,18 @@ class WaypointFollower(Node):
                     controller_name='alignment_turn',
                     detail=f'Preparing segment {self.current_index}->{self.current_index + 1}',
                 )
+                if self.progress_watchdog_enabled:
+                    fault = self.progress_watchdog.check_alignment(
+                        self.current_index,
+                        time.monotonic(),
+                        self.pose,
+                        turn_command.heading_error,
+                        turn_command.angular_velocity,
+                    )
+                    if fault is not None:
+                        self._latch_safety_fault(fault)
+                        self._publish_stop()
+                        return
                 self._publish_twist(0.0, turn_command.angular_velocity)
                 self._publish_debug(self._build_debug_snapshot(turn_command=turn_command))
                 self._log_control_sample(turn_command=turn_command)
@@ -640,8 +739,8 @@ class WaypointFollower(Node):
         try:
             tracking_command = self.controller.compute_command(self.current_route, self.pose)
             self.active_controller_name = getattr(self.controller, 'active_controller_name', self.selected_controller_type)
-        except ValueError as exc:
-            self._set_phase('control_error', controller_name='control_error')
+        except Exception as exc:
+            self._latch_safety_fault(f'controller error: {exc}')
             self._publish_stop()
             self.get_logger().error(str(exc))
             self.get_logger().warn(
@@ -657,25 +756,24 @@ class WaypointFollower(Node):
             self._log_control_sample(error_message=str(exc))
             return
 
+        if self.progress_watchdog_enabled:
+            fault = self.progress_watchdog.check_tracking(
+                self.current_index,
+                time.monotonic(),
+                self.pose,
+                tracking_command.dist_to_goal,
+                tracking_command.linear_velocity,
+                tracking_command.angular_velocity,
+            )
+            if fault is not None:
+                self._latch_safety_fault(fault)
+                self._publish_stop()
+                return
+
         self._publish_twist(tracking_command.linear_velocity, tracking_command.angular_velocity)
         self._publish_debug(self._build_debug_snapshot(tracking_command=tracking_command))
         self._log_control_sample(tracking_command=tracking_command)
         self._maybe_log_runtime_status(tracking_command=tracking_command)
-
-        if is_goal_reached(self.current_route, self.pose, self.tracking_config.goal_threshold):
-            self.get_logger().info(f'Reached waypoint {self.current_index + 1}')
-            self._terminal_info(
-                'Reached waypoint | '
-                f'wp={self.current_index + 1} | '
-                f'pose=({self.pose[0]:.2f}, {self.pose[1]:.2f}) | '
-                f'dist_to_goal={tracking_command.dist_to_goal:.2f} m',
-                level='normal',
-            )
-            self.current_index += 1
-            self.segment_aligned = False
-            self._set_phase('aligning', controller_name='alignment_turn', detail='Switching to next segment.')
-            self.controller.reset()
-            self.update_status_file()
 
     def _odom_is_fresh(self):
         if self.last_odom_time is None:
@@ -693,7 +791,49 @@ class WaypointFollower(Node):
             self.last_odom_warn_time = self.get_clock().now()
         return False
 
+    def _advance_waypoint(self, reason):
+        reached_index = self.current_index + 1
+        self.get_logger().info(f'Reached waypoint {reached_index} ({reason})')
+        self._terminal_info(
+            'Reached waypoint | '
+            f'wp={reached_index} | '
+            f'pose=({self.pose[0]:.2f}, {self.pose[1]:.2f}) | '
+            f'reason={reason}',
+            level='normal',
+        )
+        self.current_index = reached_index
+        self.segment_aligned = False
+        self._set_phase(
+            'aligning', controller_name='alignment_turn', detail='Switching to next segment.'
+        )
+        self.controller.reset()
+        self.update_status_file()
+
+    def _latch_safety_fault(self, reason):
+        if self.safety_fault_reason is not None:
+            return
+        self.safety_fault_reason = str(reason)
+        self._set_phase('safety_stop', controller_name='safety_watchdog')
+        self._publish_high_priority_stop()
+        self.get_logger().error(
+            'NAVIGATION SAFETY STOP (latched): '
+            f'{self.safety_fault_reason}. Inspect localization/command topics and restart '
+            'waypoint_follower only after the cause is understood.'
+        )
+        self._log_control_sample(error_message=self.safety_fault_reason)
+        self.flush_log_file()
+
     def _publish_twist(self, linear_x, angular_z):
+        reason = validate_velocity_command(
+            float(linear_x),
+            float(angular_z),
+            self.command_max_linear_speed,
+            self.command_max_angular_speed,
+        )
+        if reason is not None:
+            self._latch_safety_fault(reason)
+            linear_x = 0.0
+            angular_z = 0.0
         twist = Twist()
         twist.linear.x = float(linear_x)
         twist.angular.z = float(angular_z)
@@ -701,6 +841,10 @@ class WaypointFollower(Node):
 
     def _publish_stop(self):
         self._publish_twist(0.0, 0.0)
+
+    def _publish_high_priority_stop(self):
+        """Override every autonomous twist_mux input after a latched fault."""
+        self.safety_stop_pub.publish(Twist())
 
     def _publish_debug(self, extra_fields):
         if not self.publish_debug:
@@ -862,6 +1006,10 @@ class WaypointFollower(Node):
         self.status_path.write_text(f'{self.current_index}\n')
 
     def destroy_node(self):
+        try:
+            self._publish_stop()
+        except Exception:
+            pass
         if self.csv_log_file is not None:
             self.csv_log_file.flush()
             self.csv_log_file.close()

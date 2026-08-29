@@ -5,12 +5,25 @@ import math
 import pytest
 
 from amiga_navigation.um982_protocol import (
+    _unicore_crc32,
     heading_to_enu_yaw,
     midpoint_from_master,
     parse_gga,
     parse_uniheadinga,
     robot_heading_from_baseline,
 )
+
+
+def _nmea_sentence(payload):
+    checksum = 0
+    for character in payload:
+        checksum ^= ord(character)
+    return f'${payload}*{checksum:02X}'
+
+
+def _uniheading_sentence(body):
+    payload = f'UNIHEADINGA,0,GPS,FINE,0,0,0,0,0,0;{body}'
+    return f'#{payload}*{_unicore_crc32(payload.encode("ascii")):08x}'
 
 
 def test_parse_rtk_fixed_gga():
@@ -45,6 +58,24 @@ def test_uniheading_rejects_bad_crc():
             'SOL_COMPUTED,NARROW_INT,1,0,0,0,0.1,0.1,"",10,8,8,8'
             ',0,00,0,0*00000000'
         )
+
+
+def test_gga_rejects_nonfinite_numeric_values():
+    sentence = _nmea_sentence(
+        'GNGGA,123519.00,4250.000000,N,07630.000000,W,4,20,'
+        '0.7,nan,M,-30.000,M,0.8,0001'
+    )
+    with pytest.raises(ValueError, match='NaN or infinity'):
+        parse_gga(sentence)
+
+
+def test_uniheading_rejects_nonfinite_numeric_values():
+    sentence = _uniheading_sentence(
+        'SOL_COMPUTED,NARROW_INT,1.0,nan,0.0,0.0,0.1,0.1,'
+        '"",10,8,8,8,0,00,0,0'
+    )
+    with pytest.raises(ValueError, match='NaN or infinity'):
+        parse_uniheadinga(sentence)
 
 
 def test_midpoint_moves_half_baseline_north():

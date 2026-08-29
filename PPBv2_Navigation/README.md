@@ -58,7 +58,7 @@ The package supports multiple waypoint tracking controllers:
    pip install pyserial numpy scipy simple-pid pyproj
    ```
 
-   If you're on a Debian/Ubuntu system with a managed Python environment, , you may need to add the `--break-system-packages` flag:
+   If you're on a Debian/Ubuntu system with a managed Python environment, you may need to add the `--break-system-packages` flag:
 
    ```bash
    pip install --break-system-packages pyserial numpy scipy simple-pid pyproj
@@ -75,7 +75,7 @@ The package supports multiple waypoint tracking controllers:
    ```
 
    When opening a new terminal, source both the ROS 2 environment and the workspace before running any nodes:
-   
+
    ```bash
    source /opt/ros/jazzy/setup.bash
    cd /path/to/PPBv2_Navigation
@@ -83,7 +83,7 @@ The package supports multiple waypoint tracking controllers:
    ```
 
    Optionally, add these commands to `~/.bashrc` to source them automatically in each new terminal:
-   
+
    ```bash
    echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
    echo "source /path/to/PPBv2_Navigation/install/setup.bash" >> ~/.bashrc
@@ -151,7 +151,7 @@ ros2 launch amiga_navigation basic_bringup.launch.py \
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
 
-<br> 
+<br>
 
 #### 1.3 Hardware ports
 
@@ -249,8 +249,6 @@ In another terminal, run the waypoint follower:
 > /home/cairlab/navigation_waypoints/last_waypoints.csv
 >    ```
 >
-
-
 
 > [!TIP]
 >
@@ -375,18 +373,15 @@ The lookahead point is capped at the segment endpoint. Forward speed is reduced 
 | `pure_pursuit_lookahead_gain` | Increase lookahead for the same `target_speed`. | Make steering more responsive and less anticipatory. |
 | `pure_pursuit_slowdown_distance` | Begin slowing earlier before a waypoint. | Maintain nominal speed closer to the waypoint. |
 
-Start with `pure_pursuit_min_lookahead`. Increase it if steering oscillates; decrease it if the robot cuts corners or reacts too slowly. Very large lookahead
-values give smooth commands but can leave a persistent cross-track error on short segments.
+Start with `pure_pursuit_min_lookahead`. Increase it if steering oscillates; decrease it if the robot cuts corners or reacts too slowly. Very large lookahead values give smooth commands but can leave a persistent cross-track error on short segments.
 
 <br>
 
 ### Sampling-based rollout MPC (`mpc_rollout`)
 
-At every control cycle, rollout MPC first applies the shared speed schedule to obtain a base speed. It evaluates three linear-speed scales (`0.35`, `0.6`, and
-`1.0` times the base speed) against evenly spaced angular-velocity candidates from $-\omega_{max}$ to $+\omega_{max}$.
+At every control cycle, rollout MPC first applies the shared speed schedule to obtain a base speed. It evaluates three linear-speed scales (`0.35`, `0.6`, and `1.0` times the base speed) against evenly spaced angular-velocity candidates from $-\omega_{max}$ to $+\omega_{max}$.
 
-For each candidate pair $(v,\omega)$, the controller predicts the unicycle model for `mpc_horizon_steps`, using `mpc_step_time` for each step. The same $(v,
-\omega)$ pair is held throughout one rollout:
+For each candidate pair $(v,\omega)$, the controller predicts the unicycle model for `mpc_horizon_steps`, using `mpc_step_time` for each step. The same $(v, \omega)$ pair is held throughout one rollout:
 
 $$
 x_{k+1}=x_k+v\cos(\psi_k)\Delta t,\qquad
@@ -432,10 +427,7 @@ $$
 U=\{(v_0,\omega_0),\ldots,(v_{N-1},\omega_{N-1})\}
 $$
 
-It uses the same unicycle prediction model as rollout MPC, but solves the bounded nonlinear optimization with SciPy SLSQP. Only the first optimized
-command is applied; at the next control cycle the horizon is solved again. The previous solution is shifted forward as a warm start. If SLSQP fails, the
-controller falls back to that warm-start sequence for the current cycle. Its running cost penalizes squared cross-track error, heading error, normalized
-goal distance, deviation from the scheduled forward speed, angular effort, and step-to-step control changes. It rewards progress along the segment. Separate terminal weights strongly shape the final predicted state:
+It uses the same unicycle prediction model as rollout MPC, but solves the bounded nonlinear optimization with SciPy SLSQP. Only the first optimized command is applied; at the next control cycle the horizon is solved again. The previous solution is shifted forward as a warm start. If SLSQP fails, the controller falls back to that warm-start sequence for the current cycle. Its running cost penalizes squared cross-track error, heading error, normalized goal distance, deviation from the scheduled forward speed, angular effort, and step-to-step control changes. It rewards progress along the segment. Separate terminal weights strongly shape the final predicted state:
 $$
 J=\sum_{k=1}^{N}
 \left(
@@ -537,6 +529,22 @@ ros2 topic echo /cmd_vel_nav
 ros2 topic echo /cmd_vel_out
 ```
 
+If the robot runs unexpectedly, compare the command topics before stopping the ROS processes (use the physical E-stop first when needed):
+
+```bash
+ros2 topic echo /nav/controller_debug
+ros2 topic info --verbose /cmd_vel_nav
+ros2 topic info --verbose /cmd_vel
+ros2 topic info --verbose /cmd_vel_key
+ros2 topic info --verbose /cmd_vel_out
+```
+
+- Nonzero `/cmd_vel_nav` means the follower requested the motion. Check the logged phase, heading error, pose, and distance-to-goal values.
+- Zero `/cmd_vel_nav` but nonzero `/cmd_vel_out` means another higher-priority `twist_mux` input is active. The verbose topic information identifies its publisher.
+- Zero `/cmd_vel_out` while the robot still moves points to the serial/Feather/CAN layer or to old Feather firmware.
+
+The follower now uses a latched progress watchdog. It stops through the high-priority `/cmd_vel_stop` input if commanded motion produces no pose change, zero-turn heading error does not improve, alignment exceeds its maximum time, or tracking fails to get closer to the waypoint. A latched safety stop does not resume automatically; inspect the cause and restart `waypoint_follower`.
+
 <br>
 
 ## Feather M4 MCU
@@ -571,7 +579,9 @@ Example:
 - Verify RTK fixed status before logging or following waypoints. The robot will stop once RTK FIX is lost.
 - Start with low `target_speed` when testing a new field, new waypoint route, or new controller.
 - Keep `max_cross_track_error` conservative. The waypoint follower stops if cross-track error exceeds this limit.
-- The serial bridge has a watchdog that sends a stop command if `/cmd_vel_out` stops updating.
+- Keep `progress_watchdog_enabled: true`. Tune its timeouts only after reviewing controller CSV logs from normal runs.
+- The serial bridge continuously repeats stop commands if `/cmd_vel_out` stops updating and rejects non-finite or out-of-range commands.
+- Re-upload the repository's `FeatherM4_MCU/code.py` after safety changes; changing Raspberry Pi files does not update the microcontroller firmware.
 - Always test controller changes in an open area before running between rows.
 
 <br>

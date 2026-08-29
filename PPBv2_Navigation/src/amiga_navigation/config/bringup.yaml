@@ -78,8 +78,12 @@ amiga_serial_bridge:
     # ls -l /dev/serial/by-id/
     serial_port: "/dev/serial/by-id/usb-Adafruit_Industries_LLC_Feather_M4_CAN_C06A5AE248364C532020205439190DFF-if00"
     baudrate: 115200
-    serial_timeout_sec: 1.0
+    serial_timeout_sec: 0.1
+    serial_write_timeout_sec: 0.2
+    max_linear_speed: 2.0
+    max_angular_speed: 1.5
 
-    # If /cmd_vel_out stops updating, the bridge sends one stop command.
-    watchdog_timeout_sec: 2.0
+    # If /cmd_vel_out stops updating, continuously send stop commands. This is
+    # independent of the 0.75 s watchdog running on the Feather M4.
+    watchdog_timeout_sec: 0.6
     watchdog_period_sec: 0.1

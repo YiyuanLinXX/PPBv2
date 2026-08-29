@@ -27,12 +27,18 @@ from farm_ng.utils.packet import AmigaRpdo1
 from farm_ng.utils.packet import AmigaTpdo1
 from farm_ng.utils.packet import DASHBOARD_NODE_ID
 from farm_ng.utils.ticks import TickRepeater
+import math
 import time
 from usb_cdc import console
 
 
 COMMAND_TIMEOUT_SEC = 0.75
 MAX_SERIAL_BUFFER_CHARS = 128
+MAX_LINEAR_SPEED = 2.0
+MAX_ANGULAR_SPEED = 1.5
+# The ROS bridge currently discards this feedback. Leaving it disabled avoids
+# any chance that an unconsumed USB transmit buffer blocks the MCU watchdog.
+ENABLE_SERIAL_FEEDBACK = False
 
 
 class HelloMainLoopApp:
@@ -60,20 +66,29 @@ class HelloMainLoopApp:
         if self.amiga_tpdo1.state != AmigaControlState.STATE_AUTO_ACTIVE:
             self.cmd_speed = 0.0
             self.cmd_ang_rate = 0.0
-        self.serial_write(
-            "{},{},{}".format(
-                self.amiga_tpdo1.state,
-                self.amiga_tpdo1.meas_speed,
-                self.amiga_tpdo1.meas_ang_rate,
+        if ENABLE_SERIAL_FEEDBACK:
+            self.serial_write(
+                "{},{},{}".format(
+                    self.amiga_tpdo1.state,
+                    self.amiga_tpdo1.meas_speed,
+                    self.amiga_tpdo1.meas_ang_rate,
+                )
             )
-        )
 
     def parse_twist(self, twist):
         fields = twist.strip().split(",")
         if len(fields) != 2:
             raise ValueError("expected two comma-separated fields")
-        self.cmd_speed = float(fields[0])
-        self.cmd_ang_rate = float(fields[1])
+        cmd_speed = float(fields[0])
+        cmd_ang_rate = float(fields[1])
+        if not math.isfinite(cmd_speed) or not math.isfinite(cmd_ang_rate):
+            raise ValueError("command contains NaN or infinity")
+        if abs(cmd_speed) > MAX_LINEAR_SPEED:
+            raise ValueError("linear command exceeds safety limit")
+        if abs(cmd_ang_rate) > MAX_ANGULAR_SPEED:
+            raise ValueError("angular command exceeds safety limit")
+        self.cmd_speed = cmd_speed
+        self.cmd_ang_rate = cmd_ang_rate
         self.last_command_time = time.monotonic()
         if self.watchdog_triggered:
             print("Serial command restored")
@@ -95,6 +110,11 @@ class HelloMainLoopApp:
             try:
                 self.parse_twist(line)
             except Exception as exc:
+                # Never retain the previous motion command after a malformed or
+                # unsafe packet; stop immediately instead of waiting 0.75 s.
+                self.cmd_speed = 0.0
+                self.cmd_ang_rate = 0.0
+                self.watchdog_triggered = True
                 print("Bad twist '{}': {}".format(line, exc))
 
     def serial_write(self, msg):

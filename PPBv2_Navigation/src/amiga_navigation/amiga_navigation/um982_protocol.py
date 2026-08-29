@@ -52,10 +52,16 @@ def parse_gga(sentence: str) -> GgaFix:
     longitude = _nmea_coordinate(fields[4], fields[5], 3)
     age_text = fields[13]
     differential_age = float(age_text) if age_text else None
+    altitude = float(fields[9])
+    finite_values = [latitude, longitude, altitude]
+    if differential_age is not None:
+        finite_values.append(differential_age)
+    if not all(math.isfinite(value) for value in finite_values):
+        raise ValueError('GGA contains NaN or infinity')
     return GgaFix(
         latitude=latitude,
         longitude=longitude,
-        altitude_m=float(fields[9]),
+        altitude_m=altitude,
         quality=int(fields[6]),
         differential_age_sec=differential_age,
         raw_sentence=sentence,
@@ -94,14 +100,28 @@ def parse_uniheadinga(sentence: str) -> HeadingSolution:
             f'UNIHEADINGA body has {len(fields)} fields; expected at least 14'
         )
 
+    baseline_m = float(fields[2])
+    heading_deg = float(fields[3])
+    pitch_deg = float(fields[4])
+    heading_stddev_deg = float(fields[6])
+    pitch_stddev_deg = float(fields[7])
+    if not all(math.isfinite(value) for value in (
+        baseline_m,
+        heading_deg,
+        pitch_deg,
+        heading_stddev_deg,
+        pitch_stddev_deg,
+    )):
+        raise ValueError('UNIHEADINGA contains NaN or infinity')
+
     return HeadingSolution(
         solution_status=fields[0].strip(),
         position_type=fields[1].strip(),
-        baseline_m=float(fields[2]),
-        heading_deg=float(fields[3]) % 360.0,
-        pitch_deg=float(fields[4]),
-        heading_stddev_deg=float(fields[6]),
-        pitch_stddev_deg=float(fields[7]),
+        baseline_m=baseline_m,
+        heading_deg=heading_deg % 360.0,
+        pitch_deg=pitch_deg,
+        heading_stddev_deg=heading_stddev_deg,
+        pitch_stddev_deg=pitch_stddev_deg,
         satellites_tracked=int(fields[9]),
         satellites_used=int(fields[10]),
     )

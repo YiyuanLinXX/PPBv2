@@ -17,7 +17,9 @@ The deployed stack has been tested successfully with both:
 - an Internet fixed-base NTRIP mountpoint;
 - an Emlid Reach RS3 Local NTRIP caster on the same LAN without Internet.
 
-The repository intentionally contains no separate IMU navigation path. Old single-GPS, Witmotion IMU, and GPS+IMU odometry nodes were removed. Do not reintroduce them unless the architecture is deliberately being expanded. The current UM982 protocol/geometry test suite has 11 passing tests.
+The repository intentionally contains no separate IMU navigation path. Old single-GPS, Witmotion IMU, and GPS+IMU odometry nodes were removed. Do not reintroduce them unless the architecture is deliberately being expanded.
+
+The current test suite has 19 passing tests covering UM982 protocol/geometry and navigation safety behavior.
 
 ## 2. Runtime data flow
 
@@ -89,14 +91,16 @@ Important semantic detail: `/gps/rtk_status_flag` is historically inverted. `Fal
 - `amiga_navigation/waypoint_follower.py`
   - consumes `/robot/odom` and `/gps/datum`;
   - publishes `/cmd_vel_nav`;
+  - latches a high-priority `/cmd_vel_stop` when alignment, pose response, or waypoint progress watchdogs fail;
   - supports PID line tracking, pure pursuit, rollout MPC, formal MPC, and a row-hybrid controller.
 - `amiga_navigation/utils/`
-  - contains the controller and shared tracking geometry implementations.
+  - contains the controller, shared tracking geometry, command validation, and pure-Python navigation progress watchdog implementations.
 - `amiga_navigation/rtk_monitor.py`
   - publishes a zero command on `/cmd_vel_stop` whenever the GNSS solution is invalid or its status becomes stale.
 - `amiga_navigation/amiga_serial_bridge.py`
   - forwards `/cmd_vel_out` to the Feather M4;
-  - has its own command watchdog and sends a final stop during shutdown.
+  - rejects non-finite/out-of-range commands;
+  - has a bounded serial write timeout, continuously repeats watchdog stops, and sends a final stop during shutdown.
 - `FeatherM4_MCU/code.py`
   - is deployed separately to the Feather M4 CAN board.
 
@@ -134,8 +138,7 @@ Never start two `um982_driver` processes, and never run another NTRIP-to-serial 
 
 ### Antenna layout parameter
 
-`antenna_baseline_angle_deg` is the direction from ANT1 to ANT2 relative to robot forward, viewed from above. Positive angles are clockwise toward the
-robot's right.
+`antenna_baseline_angle_deg` is the direction from ANT1 to ANT2 relative to robot forward, viewed from above. Positive angles are clockwise toward the robot's right.
 
 ```text
 ANT1 rear,  ANT2 front:  antenna_baseline_angle_deg =   0
@@ -188,6 +191,8 @@ The safety flag additionally requires:
 - a recent complete valid solution;
 - an active NTRIP connection when NTRIP is enabled;
 - recent NTRIP data within `ntrip_data_timeout_sec`.
+
+The waypoint follower independently checks numeric pose validity and task progress. Message arrival freshness is not sufficient because hardware can repeat a frozen numeric solution with new receive times. During alignment it requires heading-error and measured-yaw progress; during tracking it requires pose response and decreasing waypoint distance. Failures latch `/cmd_vel_stop` until the follower is restarted.
 
 Expected GGA quality progression is generally:
 
@@ -291,8 +296,7 @@ ros2 run amiga_navigation um982_driver --ros-args \
   --params-file "$PWD/src/amiga_navigation/config/bringup.yaml"
 ```
 
-If a normal non-symlink build was previously used, an installed YAML copy may be stale. Either rebuild or pass the source YAML explicitly. To verify the
-active parameters:
+If a normal non-symlink build was previously used, an installed YAML copy may be stale. Either rebuild or pass the source YAML explicitly. To verify the active parameters:
 
 ```bash
 ros2 param get /um982_driver ntrip_host
@@ -315,8 +319,7 @@ ros2 topic echo /cmd_vel_nav
 ros2 topic echo /cmd_vel_out
 ```
 
-A healthy startup should include an NTRIP connection log and should not continuously report rejected UM982 solutions. The output heading is already
-robot-forward heading after layout compensation.
+A healthy startup should include an NTRIP connection log and should not continuously report rejected UM982 solutions. The output heading is already robot-forward heading after layout compensation.
 
 For Reach Local NTRIP diagnostics:
 
@@ -329,8 +332,7 @@ curl --http1.0 --http0.9 -v --max-time 10 \
 xxd -l 128 /tmp/reach.rtcm
 ```
 
-A curl timeout after receiving bytes is normal for a continuous stream. Successful legacy output commonly begins with `ICY 200 OK` followed by binary
-RTCM3 frames containing repeated `d3` preambles.
+A curl timeout after receiving bytes is normal for a continuous stream. Successful legacy output commonly begins with `ICY 200 OK` followed by binary RTCM3 frames containing repeated `d3` preambles.
 
 ## 11. Tests
 
@@ -351,8 +353,7 @@ The pure tests cover:
 - forward, reversed, left-side, and right-side antenna layouts;
 - post-layout heading calibration.
 
-After validation, `build/`, `install/`, `log/`, `__pycache__/`, and pytest caches are generated artifacts and must not be committed. `.gitignore`
-already excludes them.
+After validation, `build/`, `install/`, `log/`, `__pycache__/`, and pytest caches are generated artifacts and must not be committed. `.gitignore` already excludes them.
 
 ## 12. Known limitations and recommended extensions
 
@@ -376,8 +377,7 @@ Good future improvements:
 6. Move secrets to a private untracked configuration or environment-backed mechanism.
 7. Add pseudo-terminal and simulated-caster integration tests.
 
-Any IMU fusion should be introduced as a separate, explicit localization layer. Do not replace the reliable UM982 dual-antenna heading path with the old
-Witmotion implementation.
+Any IMU fusion should be introduced as a separate, explicit localization layer. Do not replace the reliable UM982 dual-antenna heading path with the old Witmotion implementation.
 
 ## 13. Safety and change checklist
 
@@ -392,6 +392,8 @@ Before field testing a change:
 7. Confirm NTRIP data stays active and GGA reaches quality `4`.
 8. Confirm loss of NTRIP or RTK causes `/cmd_vel_stop` to override navigation.
 9. Confirm the Feather watchdog stops the robot if commands cease.
-10. Start with low speed and maintain a physical emergency-stop path.
+10. Confirm a simulated frozen pose causes a latched follower safety stop.
+11. Confirm `ros2 topic info --verbose /cmd_vel_out` shows only the expected `twist_mux` publisher.
+12. Start with low speed and maintain a physical emergency-stop path.
 
 When changing geometry, heading conventions, safety status, or twist_mux priority, update this handoff, the README, YAML comments, and tests together.
