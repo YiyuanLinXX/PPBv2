@@ -53,25 +53,6 @@ um982_driver:
     gps_status_log_enabled: true
     gps_status_log_period_sec: 5.0
 
-    # Fixed-base NTRIP mountpoint: RTCM is received, rover GGA is not sent.
-    ntrip_enabled: true
-    # ntrip_host: "use your NTRIP profile address"
-    # ntrip_port: use your NTRIP profile port
-    # ntrip_mountpoint: "use your NTRIP mountpoint"
-    # ntrip_username: "use your NTRIP profile username"
-    # ntrip_password: "use your NTRIP profile password"
-    ntrip_host: "192.168.2.88"
-    ntrip_port: 2001
-    ntrip_mountpoint: "emlidreach"
-    ntrip_username: "reach"
-    ntrip_password: "emlidreach"
-    # NTRIP v1 (ICY) and v2 (HTTP) responses are accepted automatically.
-    # TLS must be selected explicitly so credentials are never probed in cleartext.
-    # This caster uses legacy/plain NTRIP over TCP, not TLS.
-    ntrip_use_tls: false
-    ntrip_socket_timeout_sec: 10.0
-    ntrip_data_timeout_sec: 5.0
-
 amiga_serial_bridge:
   ros__parameters:
     # Feather M4 CAN USB serial device:

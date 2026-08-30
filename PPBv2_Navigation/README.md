@@ -1,8 +1,6 @@
 # PPBv2 Amiga Navigation
 
-Last updated by [Yiyuan Lin](yl3663@cornell.edu) on Aug 26, 2026
-
-<br>
+Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 29, 2026
 
 ## Overview
 
@@ -22,8 +20,6 @@ The package supports multiple waypoint tracking controllers:
 
 <img src="../assets/dual_gps_overview.png" alt="nav_diagram"  />
 
-<br>
-
 ## Hardware
 
 - [Farm-ng Amiga robot](https://store.farm-ng.com/) (you can also use your own robot base and create a node for low-level controller communication)
@@ -32,15 +28,13 @@ The package supports multiple waypoint tracking controllers:
 - [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/) (We used a [Raspberry Pi 5 NVMe HAT, PCIe to M.2 SSD Adapter](https://www.amazon.com/dp/B0D948WZJV?lv=shuf&channelId=520&plpRedirect=mhFallback) and a 2230 M2 SSD to ensure performance)
 - [Adafruit Feather M4 CAN microcontroller](https://learn.adafruit.com/adafruit-feather-m4-can-express/overview) and a [M12 X-coded 5 Pin Male cable](https://www.amazon.com/Lonlonty-Sensor-Connector-Aviation-Cable/dp/B09ZQPT9ZX/ref=sr_1_2?crid=113ATX8H0CH0N&dib=eyJ2IjoiMSJ9.7Mpd2EkUe3he137OITnJsifHiGGYbrgWrY7ELOhyZqfCwONaUCwSzWoHuMEDlkP3c9hyDc3TXLCTTN6vdlJK2gPggJdYT7ovz7_xOuGCMKb811K5b_xZHwrfU1-LAjc9rLdjiOU5diM0SpZU7HCK9J3LQVgKG95c_3wyG9GxqqUu6V3dpWlgDS0-RiT1fR5ykYwxdlwyc6sNcnKFE_VDcJunhBEsm2eUW_IcX_mW-_W2roO-jVNPyyf6nihcdBA1Z5dmE5ndBrdLJFTwBqTjzpC5D5fggufTvOPGVHvHxDA.CMA465yUP4xF0BHfVDqtuUe91lMc1eI1mBqzL3YzLsQ&dib_tag=se&keywords=M12%2BSensor%2BConnector%2BAviation%2BCable%2B-%2BMale%2B5%2Bpin%2BStraight%2B6.5Ft%2F2M%2BAviation%2BSocket%2BWaterproof%2BElectrical%2BCable%2Bfor%2BIndustrial%2BAutomation%2BControl%2CFieldbus%2BModule%2CDevice%2BNetworkdsas&nsdOptOutParam=true&qid=1786398345&s=electronics&sprefix=m12%2Bsensor%2Bconnector%2Baviation%2Bcable%2B-%2Bmale%2B5%2Bpin%2Bstraight%2B6.5ft%2F2m%2Baviation%2Bsocket%2Bwaterproof%2Belectrical%2Bcable%2Bfor%2Bindustrial%2Bautomation%2Bcontrol%2Cfieldbus%2Bmodule%2Cdevice%2Bnetworkdsas%2Celectronics%2C102&sr=1-2&th=1)
 
-<br>
-
 ## Dependencies
 
 1. Install Ubuntu 24.04 on Raspberry Pi 5
 
-2. Install ROS2 Jazzy on Raspberry Pi 5 (Ubuntu) following the official [instruction](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
+2. Install ROS 2 Jazzy on Raspberry Pi 5 (Ubuntu) following the official [instructions](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
 
-3. Install necessary ROS2 packages and Python tools
+3. Install the necessary ROS 2 packages and Python tools.
 
    ```bash
    sudo apt install \
@@ -49,7 +43,8 @@ The package supports multiple waypoint tracking controllers:
      python3-setuptools \
      ros-jazzy-geographic-msgs \
      ros-jazzy-tf-transformations \
-     ros-jazzy-twist-mux
+     ros-jazzy-twist-mux \
+     screen
    ```
 
 4. Install necessary Python packages by running
@@ -90,34 +85,30 @@ The package supports multiple waypoint tracking controllers:
    source ~/.bashrc
    ```
 
-<br>
-
 ## Getting Started
 
 ### 1. Basic configuration
 
-Configure the UM982 receiver, NTRIP connection, antenna geometry, and hardware ports before starting the navigation stack.
+Configure the UM982 receiver, antenna geometry, hardware ports, and selected NTRIP profile before starting the navigation stack.
 
 #### 1.1 UM982 and NTRIP
 
-Edit `src/amiga_navigation/config/bringup.yaml` and set the stable UM982 `serial_port`, `baseline_m`, Feather M4 serial bridge settings, and all NTRIP connection fields, including `ntrip_password`.
+Hardware and receiver settings are stored in `src/amiga_navigation/config/bringup.yaml`. The deployed Emlid Reach Local NTRIP connection is stored separately in `src/amiga_navigation/config/ntrip.yaml`; `basic_bringup.launch.py` loads both files by default.
 
-Example NTRIP configuration:
+The Emlid profile contains:
 
 ```yaml
-ntrip_host: "your-ntrip-host"
-ntrip_port: 8002
-ntrip_mountpoint: "your-mountpoint"
-ntrip_username: "your-username"
-ntrip_password: "your-password"
+ntrip_host: "192.168.2.88"
+ntrip_port: 2001
+ntrip_mountpoint: "emlidreach"
+ntrip_username: "reach"
+ntrip_password: "emlidreach"
 ntrip_use_tls: false
 ```
 
-Do not commit real NTRIP credentials to a public repository.
+These are credentials for the Reach's local caster on the isolated robot LAN. If the Reach Local NTRIP settings change, update only this profile. Do not put Internet-accessible or sensitive NTRIP credentials in a public repository.
 
-`um982_driver` exclusively owns the single full-duplex USB serial connection. It reads GGA and NIHEADINGA while writing RTCM received from the fixed-base NTRIP mountpoint. Published positions represent the geometric midpoint between ANT1 and ANT2, while odometry orientation represents the robot's forward direction.
-
-<br>
+`um982_driver` exclusively owns its full-duplex USB serial connection. It reads GGA and UNIHEADINGA while writing RTCM received from the fixed-base NTRIP mountpoint. Published positions represent the geometric midpoint between ANT1 and ANT2, while odometry orientation represents the robot's forward direction.
 
 #### 1.2 Antenna layout
 
@@ -133,35 +124,33 @@ UM982 reports true heading along the physical baseline from ANT1 (master positio
 For example:
 
 ```yaml
-baseline_m: 1.28
-antenna_baseline_angle_deg: 90.0
+baseline_m: 1.18
+antenna_baseline_angle_deg: -90.0
 heading_offset_deg: 0.0
 ```
 
-In this example ANT2 is mounted to the robot's right of ANT1. The driver uses the raw ANT1-to-ANT2 heading to calculate the antenna midpoint, then subtracts 90 degrees to obtain robot-forward heading. `heading_offset_deg` is a separate, optional fine calibration and should normally remain `0.0`.
+In this example ANT2 is mounted to the robot's left of ANT1. The driver uses the raw ANT1-to-ANT2 heading to calculate the antenna midpoint, then applies the configured layout angle to obtain robot-forward heading. `heading_offset_deg` is a separate, optional fine calibration and should normally remain `0.0`.
 
 NTRIP v1 (`ICY`) and v2 (`HTTP`) responses are handled automatically. Plain TCP versus TLS is an explicit `ntrip_use_tls` setting so credentials are never silently probed over cleartext.
 
-Building with `--symlink-install` lets later YAML edits take effect without rebuilding. With a normal installation, launch directly with the source YAML:
+Building with `--symlink-install` lets later YAML edits take effect without rebuilding. With a normal installation, run the following command from the `PPBv2_Navigation` workspace root to launch directly with the source YAML:
 
 ```bash
 ros2 launch amiga_navigation basic_bringup.launch.py \
-  bringup_config:="/home/cairlab/PPBv2_Navigation/src/amiga_navigation/config/bringup.yaml"
+  bringup_config:="$PWD/src/amiga_navigation/config/bringup.yaml" \
+  ntrip_profile:="$PWD/src/amiga_navigation/config/ntrip.yaml"
 ```
 
 The driver configures rover mode, the fixed baseline, and 10 Hz GGA plus UNIHEADINGA output at startup. Set `configure_receiver_on_start: false` only when the receiver configuration is managed elsewhere.
-
-<br>
 
 #### 1.3 Hardware ports
 
 Before running on the robot, update the serial device paths in:
 
-- `src/amiga_navigation/config/bringup.yaml` for UM982, baseline, quality limits, NTRIP, GPS status logging, and the Feather M4 CAN serial bridge.
+- `src/amiga_navigation/config/bringup.yaml` for the UM982, baseline, quality limits, GPS status logging, and Feather M4 CAN serial bridge.
+- `src/amiga_navigation/config/ntrip.yaml` for the deployed Emlid Reach Local NTRIP connection.
 
 The bringup YAML uses `/dev/serial/by-id/...` paths for the UM982 and Feather M4 CAN. Those paths are stable on one robot, but usually need to be checked after replacing hardware.
-
-<br>
 
 ### 2. Start the base stack without waypoint following
 
@@ -176,8 +165,6 @@ For debug logging, use:
    ```
 
 This starts the same base stack plus `nav_topic_debug_logger`. It still does not start `waypoint_follower`; run the follower separately so you can choose the waypoint file and controller.
-
-<br>
 
 ### 3. Record waypoints for navigation (optional)
 
@@ -201,7 +188,7 @@ Controls:
 By default, waypoint files are saved in:
 
    ```text
-   /home/cairlab/navigation_waypoints
+   $HOME/navigation_waypoints
    ```
 
 The logger generates the following files:
@@ -222,8 +209,6 @@ Waypoint CSV format:
    >
    > Waypoints may also be generated using GIS-based tools or any other preferred waypoint collection method. For consistent RTK positioning, ensure that the waypoints are collected using corrections from the same RTK base station used by the robot's GNSS receiver.
 
-<br>
-
 ### 4. Run waypoint-based navigation
 
  If the base stack is not already running, launch it with:
@@ -235,7 +220,8 @@ Waypoint CSV format:
 In another terminal, run the waypoint follower:
 
    ```bash
-   ros2 run amiga_navigation waypoint_follower --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv #replace with your waypoint file path
+   ros2 run amiga_navigation waypoint_follower \
+     --waypoints "$HOME/navigation_waypoints/latest_waypoints.csv"
    ```
 
 **The waypoints follower automatically loads `src/amiga_navigation/config/waypoint_follower_params.yaml` when available.**
@@ -245,8 +231,8 @@ In another terminal, run the waypoint follower:
 > The waypoint follower stores navigation progress in:
 >
 >    ```text
-> /home/cairlab/navigation_waypoints/status.txt
-> /home/cairlab/navigation_waypoints/last_waypoints.csv
+> $HOME/navigation_waypoints/status.txt
+> $HOME/navigation_waypoints/last_waypoints.csv
 >    ```
 >
 
@@ -256,7 +242,7 @@ In another terminal, run the waypoint follower:
 >
 >    ```bash
 > ros2 run amiga_navigation waypoint_follower \
->   --waypoints /home/cairlab/navigation_waypoints/latest_waypoints.csv \
+>   --waypoints "$HOME/navigation_waypoints/latest_waypoints.csv" \
 >   --controller pid_line
 >    ```
 >
@@ -271,8 +257,6 @@ In another terminal, run the waypoint follower:
 >    ```
 >
 > The CLI `--controller` value overrides the `controller_type` value in `waypoint_follower_params.yaml` for that run.
->
-> #### 
 >
 > **Tip 2. The resume mode can be selected with:**
 >
@@ -290,8 +274,6 @@ In another terminal, run the waypoint follower:
 >    - `yes`: automatically continue from `last_waypoints.csv`.
 >    - `no`: ignore previous progress and start from the requested waypoint file.
 >
-> #### 
->
 > **Tip 3. As an additional manual override, users can run `teleop_twist_keyboard` in another terminal:**
 >
 >    ```bash
@@ -299,8 +281,6 @@ In another terminal, run the waypoint follower:
 >    ```
 >
 > The `twist_mux` configuration gives `/cmd_vel_key` the highest priority, so keyboard commands override waypoint navigation commands. This is useful for manual control during testing or when the operator needs to take over quickly.
-
-<br>
 
 ## Controller Configuration
 
@@ -322,8 +302,6 @@ Controller behavior:
 | `mpc_formal` | Solves a receding-horizon optimization problem with SciPy SLSQP. | Short connectors or tighter maneuvers. |
 | `row_hybrid` | Switches between `mpc_formal`, `pure_pursuit`, and `pid_line` by segment length. | Routes with both long crop rows and short connectors. |
 
-<br>
-
 ### PID line tracking (`pid_line`)
 
 The PID controller tracks the infinite line defined by the current waypoint segment. Its lateral correction speed is:
@@ -342,8 +320,6 @@ The follower combines this lateral correction with forward path speed, converts 
 | `heading_gain` | Align the robot heading more aggressively with the path. | Reduce heading-induced oscillation. |
 
 `max_lateral_speed` limits the PID output, while `max_heading_for_full_speed` and `max_cross_track_error` reduce forward speed as tracking error grows. This controller is usually the most stable choice for long, straight crop rows.
-
-<br>
 
 ### Pure pursuit (`pure_pursuit`)
 
@@ -374,8 +350,6 @@ The lookahead point is capped at the segment endpoint. Forward speed is reduced 
 | `pure_pursuit_slowdown_distance` | Begin slowing earlier before a waypoint. | Maintain nominal speed closer to the waypoint. |
 
 Start with `pure_pursuit_min_lookahead`. Increase it if steering oscillates; decrease it if the robot cuts corners or reacts too slowly. Very large lookahead values give smooth commands but can leave a persistent cross-track error on short segments.
-
-<br>
 
 ### Sampling-based rollout MPC (`mpc_rollout`)
 
@@ -417,8 +391,6 @@ where $s_N$ is progress along the segment. The lowest-cost candidate is sent to 
 
 The prediction duration is approximately `mpc_horizon_steps * mpc_step_time`. Increasing both horizon length and candidate count raises CPU cost. Tune the tracking weights before enlarging the search.
 
-<br>
-
 ### Optimization-based MPC (`mpc_formal`)
 
 Formal MPC optimizes a different linear and angular velocity for every step in the prediction horizon:
@@ -457,8 +429,6 @@ $$
 
 Tune formal MPC at a low `target_speed` first. If the solver is too slow, reduce `formal_mpc_horizon_steps` or `formal_mpc_solver_maxiter`. If commands are jittery, raise the smoothness weights before increasing the horizon.
 
-<br>
-
 ### Row hybrid controller (`row_hybrid`)
 
 The hybrid controller chooses an existing controller once per current segment according to its length $L$:
@@ -493,8 +463,6 @@ Increase `row_connector_length_threshold` to classify more segments as short MPC
 >
 > Controller-specific parameter names are grouped in the same YAML file by prefix, such as `pid_*`, `pure_pursuit_*`, `mpc_*`, `formal_mpc_*`, and `row_*`.
 
-<br>
-
 ## Logging and Debugging
 
 The follower can publish structured debug messages on:
@@ -512,7 +480,7 @@ ros2 topic echo /nav/controller_debug
 When `enable_csv_logging` is true, the follower writes per-cycle control logs to:
 
 ```text
-/home/cairlab/navigation_waypoints/waypoint_control_log_<timestamp>.csv
+$HOME/navigation_waypoints/waypoint_control_log_<timestamp>.csv
 ```
 
 The CSV log includes phase, active controller, waypoint index, pose, heading error, cross-track error, distance to goal, target speed, and command velocity.
@@ -545,8 +513,6 @@ ros2 topic info --verbose /cmd_vel_out
 
 The follower now uses a latched progress watchdog. It stops through the high-priority `/cmd_vel_stop` input if commanded motion produces no pose change, zero-turn heading error does not improve, alignment exceeds its maximum time, or tracking fails to get closer to the waypoint. A latched safety stop does not resume automatically; inspect the cause and restart `waypoint_follower`.
 
-<br>
-
 ## Feather M4 MCU
 
 The `FeatherM4_MCU/code.py` script receives serial velocity commands from the Raspberry Pi and sends Amiga CAN control commands.
@@ -571,8 +537,6 @@ Example:
 0.500000,0.100000
 ```
 
-<br>
-
 ## Safety Notes
 
 - Confirm the Amiga is in the correct autonomous-ready state before sending navigation commands.
@@ -583,8 +547,6 @@ Example:
 - The serial bridge continuously repeats stop commands if `/cmd_vel_out` stops updating and rejects non-finite or out-of-range commands.
 - Re-upload the repository's `FeatherM4_MCU/code.py` after safety changes; changing Raspberry Pi files does not update the microcontroller firmware.
 - Always test controller changes in an open area before running between rows.
-
-<br>
 
 ## Maintenance
 

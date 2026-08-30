@@ -11,11 +11,15 @@
 # Everything below this section can normally be left unchanged.
 # =============================================================================
 
-# Folder containing the built PPBv2 Imaging program
-WORKSPACE="/home/cairlab/PPBv2/PPBv2_Imaging"
+# Folder containing this launcher and the built PPBv2 Imaging program.
+# Override with PPBV2_IMAGING_WORKSPACE only if the launcher is stored elsewhere.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE="${PPBV2_IMAGING_WORKSPACE:-$SCRIPT_DIR}"
 
-# Parent folder where each data-collection folder will be saved
-DATA_ROOT="${PPBV2_DATA_ROOT:-/media/Data/cairlab}"
+# Parent folder where each data-collection folder will be saved.
+# USER normally contains the account running this script.
+CURRENT_USER="${USER:-$(id -un)}"
+DATA_ROOT="${PPBV2_DATA_ROOT:-/media/Data/$CURRENT_USER}"
 
 # Arduino connection
 ARDUINO_PORT="/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_F412FA9CA7F8-if01"
@@ -83,7 +87,7 @@ GPS_BAUD=115200
 # UM982 dual-antenna settings
 UM982_BASELINE_M=1.18                     # Measured distance between antennas, meters
 UM982_BASELINE_TOLERANCE_M=0.1            # Allowed distance error, in meters
-UM982_ANTENNA_BASELINE_ANGLE_DEG=0.0      # Antenna direction relative to robot
+UM982_ANTENNA_BASELINE_ANGLE_DEG=-90.0    # ANT2 is left of ANT1; output is robot-forward heading
 UM982_HEADING_OFFSET_DEG=0.0              # Heading calibration adjustment
 UM982_PITCH_MULTIPLIER=1.0                # Use -1.0 if pitch direction is reversed
 UM982_OUTPUT_PERIOD_SEC=0.1                # One GPS update every 0.1 seconds

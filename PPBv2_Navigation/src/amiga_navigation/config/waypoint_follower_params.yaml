@@ -33,9 +33,9 @@
     terminal_status_period_sec: 1.5
     terminal_show_alignment_details: false
     terminal_show_tracking_details: false
-    log_directory: /home/cairlab/navigation_waypoints
-    status_path: /home/cairlab/navigation_waypoints/status.txt
-    last_waypoints_path: /home/cairlab/navigation_waypoints/last_waypoints.csv
+    log_directory: "~/navigation_waypoints"
+    status_path: "~/navigation_waypoints/status.txt"
+    last_waypoints_path: "~/navigation_waypoints/last_waypoints.csv"
     controller_type: pid_line # options: pid_line, pure_pursuit, mpc_rollout, mpc_formal, row_hybrid
     # Safety watchdogs latch a zero command when fresh odometry values do not
     # actually respond to motion commands or the waypoint stops getting closer.

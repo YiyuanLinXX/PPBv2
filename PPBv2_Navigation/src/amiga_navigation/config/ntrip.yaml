@@ -1,0 +1,16 @@
+um982_driver:
+  ros__parameters:
+    # Emlid Reach Local NTRIP caster on the robot LAN. This fixed-base
+    # connection receives RTCM corrections and does not send rover GGA.
+    ntrip_enabled: true
+    ntrip_host: "192.168.2.88"
+    ntrip_port: 2001
+    ntrip_mountpoint: "emlidreach"
+    ntrip_username: "reach"
+    ntrip_password: "emlidreach"
+
+    # Reach Local NTRIP uses plain TCP. The driver accepts both legacy ICY
+    # and HTTP responses, but never probes cleartext automatically.
+    ntrip_use_tls: false
+    ntrip_socket_timeout_sec: 10.0
+    ntrip_data_timeout_sec: 5.0

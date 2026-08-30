@@ -42,12 +42,21 @@ from amiga_navigation.utils.navigation_safety import (
 )
 
 
-DEFAULT_WAYPOINTS_PATH = '/home/cairlab/navigation_waypoints/latest_waypoints.csv'
+DEFAULT_WAYPOINT_DIRECTORY = Path.home() / 'navigation_waypoints'
+DEFAULT_WAYPOINTS_PATH = str(DEFAULT_WAYPOINT_DIRECTORY / 'latest_waypoints.csv')
 CONTROLLER_CHOICES = ['pid_line', 'pure_pursuit', 'mpc_rollout', 'mpc_formal', 'row_hybrid']
+SOURCE_PARAMS_PATH = (
+    Path('src') / 'amiga_navigation' / 'config' /
+    'waypoint_follower_params.yaml'
+)
 DEFAULT_PARAMS_FILE_CANDIDATES = [
-    Path('/home/cairlab/PPBv2_Navigation/src/amiga_navigation/config/waypoint_follower_params.yaml'),
-    Path(__file__).resolve().parents[1] / 'config' / 'waypoint_follower_params.yaml',
-    Path(__file__).resolve().parents[4] / 'share' / 'amiga_navigation' / 'config' / 'waypoint_follower_params.yaml',
+    Path.home() / 'PPBv2_Navigation' / SOURCE_PARAMS_PATH,
+    Path.home() / 'PPBv2' / 'PPBv2_Navigation' / SOURCE_PARAMS_PATH,
+    Path(__file__).resolve().parents[1] /
+    'config' / 'waypoint_follower_params.yaml',
+    Path(__file__).resolve().parents[4] /
+    'share' / 'amiga_navigation' / 'config' /
+    'waypoint_follower_params.yaml',
 ]
 
 
@@ -71,11 +80,11 @@ class WaypointFollower(Node):
         self.command_max_linear_speed = self._get_float('command_max_linear_speed')
         self.command_max_angular_speed = self._get_float('command_max_angular_speed')
 
-        self.log_directory = Path(self._get_str('log_directory'))
+        self.log_directory = Path(self._get_str('log_directory')).expanduser()
         self.log_directory.mkdir(parents=True, exist_ok=True)
-        self.status_path = Path(self._get_str('status_path'))
-        self.last_wp_path = Path(self._get_str('last_waypoints_path'))
-        self.requested_csv_path = Path(csv_path)
+        self.status_path = Path(self._get_str('status_path')).expanduser()
+        self.last_wp_path = Path(self._get_str('last_waypoints_path')).expanduser()
+        self.requested_csv_path = Path(csv_path).expanduser()
         self.resume_mode = resume_mode
         self.csv_path, self.current_index = self._select_navigation_file()
         self.selected_controller_type = controller_override or self._get_str('controller_type')
@@ -249,9 +258,9 @@ class WaypointFollower(Node):
         self.declare_parameter('terminal_status_period_sec', 1.5)
         self.declare_parameter('terminal_show_alignment_details', False)
         self.declare_parameter('terminal_show_tracking_details', False)
-        self.declare_parameter('log_directory', '/home/cairlab/navigation_waypoints')
-        self.declare_parameter('status_path', '/home/cairlab/navigation_waypoints/status.txt')
-        self.declare_parameter('last_waypoints_path', '/home/cairlab/navigation_waypoints/last_waypoints.csv')
+        self.declare_parameter('log_directory', str(DEFAULT_WAYPOINT_DIRECTORY))
+        self.declare_parameter('status_path', str(DEFAULT_WAYPOINT_DIRECTORY / 'status.txt'))
+        self.declare_parameter('last_waypoints_path', str(DEFAULT_WAYPOINT_DIRECTORY / 'last_waypoints.csv'))
         self.declare_parameter('controller_type', 'pid_line')
         self.declare_parameter('progress_watchdog_enabled', True)
         self.declare_parameter('min_segment_length_m', 0.05)

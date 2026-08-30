@@ -29,11 +29,15 @@ def yaw_deg_from_quaternion(q) -> float:
 class NavTopicDebugLogger(Node):
     def __init__(self):
         super().__init__('nav_topic_debug_logger')
-        self.declare_parameter('log_directory', '/home/cairlab/robot_nav_debug_log')
+        self.declare_parameter(
+            'log_directory', str(Path.home() / 'robot_nav_debug_log')
+        )
         self.declare_parameter('log_frequency', 10.0)
         self.declare_parameter('flush_every_row', True)
 
-        self.log_directory = Path(str(self.get_parameter('log_directory').value))
+        self.log_directory = Path(
+            str(self.get_parameter('log_directory').value)
+        ).expanduser()
         self.log_frequency = float(self.get_parameter('log_frequency').value)
         self.flush_every_row = bool(self.get_parameter('flush_every_row').value)
         self.log_directory.mkdir(parents=True, exist_ok=True)

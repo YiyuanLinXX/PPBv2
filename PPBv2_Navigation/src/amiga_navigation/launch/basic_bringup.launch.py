@@ -20,6 +20,11 @@ def generate_launch_description():
         default_value=os.path.join(pkg, 'config', 'bringup.yaml'),
         description='Absolute path to the runtime bringup YAML configuration.',
     )
+    ntrip_profile_argument = DeclareLaunchArgument(
+        'ntrip_profile',
+        default_value=os.path.join(pkg, 'config', 'ntrip.yaml'),
+        description='Absolute path to the NTRIP profile YAML configuration.',
+    )
 
     twist_mux = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -39,7 +44,10 @@ def generate_launch_description():
         executable='um982_driver',
         name='um982_driver',
         output='screen',
-        parameters=[LaunchConfiguration('bringup_config')],
+        parameters=[
+            LaunchConfiguration('bringup_config'),
+            LaunchConfiguration('ntrip_profile'),
+        ],
     )
 
     rtk_monitor = Node(
@@ -59,6 +67,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         bringup_config_argument,
+        ntrip_profile_argument,
         twist_mux,
         datum_publisher,
         um982_driver,

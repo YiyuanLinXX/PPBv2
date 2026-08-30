@@ -20,8 +20,12 @@ class OdometryLoggerNode(Node):
     def __init__(self):
         super().__init__('robot_odom_logger')
         self.get_logger().info("Starting robot_odom logger")
-        self.declare_parameter('log_directory', '/home/cairlab/robot_nav_debug_log')
-        self.log_directory = Path(str(self.get_parameter('log_directory').value))
+        self.declare_parameter(
+            'log_directory', str(Path.home() / 'robot_nav_debug_log')
+        )
+        self.log_directory = Path(
+            str(self.get_parameter('log_directory').value)
+        ).expanduser()
         self.log_directory.mkdir(parents=True, exist_ok=True)
 
         # Generate a timestamped filename

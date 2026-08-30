@@ -243,6 +243,12 @@ Primary configuration:
 src/amiga_navigation/config/bringup.yaml
 ```
 
+Default NTRIP profile:
+
+```text
+src/amiga_navigation/config/ntrip.yaml
+```
+
 Important groups:
 
 - serial port and baud rate;
@@ -250,7 +256,8 @@ Important groups:
 - antenna layout and heading/pitch conventions;
 - quality and age limits;
 - receiver startup configuration;
-- NTRIP endpoint, credentials, TLS, and timeouts.
+
+The separate NTRIP profile contains the endpoint, credentials, TLS mode, and timeouts. `basic_bringup.launch.py` loads `bringup.yaml` first and the NTRIP profile second.
 
 Normal hardware-layout changes should require only:
 
@@ -262,14 +269,14 @@ heading_offset_deg: 0.0
 pitch_multiplier: 1.0
 ```
 
-For switching between Internet and Local NTRIP, prefer two private YAML files with identical non-NTRIP settings. Select one with:
+The checked-in profile targets the Emlid Reach Local NTRIP caster on the robot LAN. To test a different profile without editing the deployed one, select it with:
 
 ```bash
-ros2 run amiga_navigation um982_driver --ros-args \
-  --params-file /absolute/path/to/selected_bringup.yaml
+ros2 launch amiga_navigation basic_bringup.launch.py \
+  ntrip_profile:=/absolute/path/to/selected_ntrip_profile.yaml
 ```
 
-The checked-in YAML currently contains deployment credentials because it is also used locally. Before publishing or sharing the repository, replace all real hosts, usernames, and passwords—including commented credentials—with placeholders and rotate any exposed secrets.
+The checked-in Emlid profile contains only credentials for the Reach's local caster. Do not add Internet-accessible or sensitive NTRIP credentials to it.
 
 ## 9. Build and run
 
@@ -286,14 +293,16 @@ Start the base stack:
 
 ```bash
 ros2 launch amiga_navigation basic_bringup.launch.py \
-  bringup_config:="$PWD/src/amiga_navigation/config/bringup.yaml"
+  bringup_config:="$PWD/src/amiga_navigation/config/bringup.yaml" \
+  ntrip_profile:="$PWD/src/amiga_navigation/config/ntrip.yaml"
 ```
 
 Or test the UM982 driver alone:
 
 ```bash
 ros2 run amiga_navigation um982_driver --ros-args \
-  --params-file "$PWD/src/amiga_navigation/config/bringup.yaml"
+  --params-file "$PWD/src/amiga_navigation/config/bringup.yaml" \
+  --params-file "$PWD/src/amiga_navigation/config/ntrip.yaml"
 ```
 
 If a normal non-symlink build was previously used, an installed YAML copy may be stale. Either rebuild or pass the source YAML explicitly. To verify the active parameters:

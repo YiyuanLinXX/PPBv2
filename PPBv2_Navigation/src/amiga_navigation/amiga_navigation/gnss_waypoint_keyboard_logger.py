@@ -25,7 +25,7 @@ from sensor_msgs.msg import NavSatFix
 class GnssWaypointKeyboardLogger(Node):
     def __init__(self, output_dir: str, snapshot_name: str | None = None):
         super().__init__('gnss_waypoint_keyboard_logger')
-        self.output_dir = output_dir
+        self.output_dir = str(Path(output_dir).expanduser())
         os.makedirs(self.output_dir, exist_ok=True)
 
         self.latest_path = os.path.join(self.output_dir, 'latest_waypoints.csv')
@@ -148,7 +148,7 @@ def main(args=None):
         '--output_dir',
         dest='output_dir',
         type=str,
-        default='/home/cairlab/navigation_waypoints',
+        default=str(Path.home() / 'navigation_waypoints'),
         help='Directory to save latest and timestamped waypoint files'
     )
     parsed, unknown = parser.parse_known_args()
