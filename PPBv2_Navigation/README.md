@@ -1,5 +1,7 @@
 # PPBv2 Amiga Navigation
 
+![Raspberry Pi 4](https://img.shields.io/badge/Raspberry%20Pi-4%20(2GB)-A22846?logo=raspberrypi&logoColor=white)![Raspberry Pi 5](https://img.shields.io/badge/Raspberry%20Pi-5-A22846?logo=raspberrypi&logoColor=white)![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)![Ubuntu 24.04](https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)![ROS 2 Humble](https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros&logoColor=white)![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-22314E?logo=ros&logoColor=white)
+
 Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 29, 2026
 
 ## Overview
