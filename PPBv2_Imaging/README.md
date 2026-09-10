@@ -1,14 +1,16 @@
 # PPBv2 Imaging
 
+![Ubuntu 22.04](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)![Ubuntu 24.04](https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)![ROS 2 Humble](https://img.shields.io/badge/ROS%202-Humble-22314E?logo=ros&logoColor=white)![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-22314E?logo=ros&logoColor=white)
+
 Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 29, 2026
 
-ROS 2 Humble package for synchronized multi-camera triggering, RGB/raw image recording, GNSS logging, and external strobe control. The deployment target is an NVIDIA Jetson AGX Orin running Ubuntu 22.04.
+ROS 2  package for synchronized multi-camera triggering, RGB/raw image recording, GNSS logging, and external strobe control.
 
 ## Hardware
 
 - [NVIDIA Jetson AGX Orin 64 GB](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/)
 - [Arduino UNO R4 WiFi](https://store.arduino.cc/products/uno-r4-wifi)
-- PhenoStereo illumination system
+- [PhenoStereo](https://www.researchgate.net/publication/342830873_PhenoStereo_a_high-throughput_stereo_vision_system_for_field-based_plant_phenotyping_-_with_an_application_in_sorghum_stem_diameter_estimation) illumination system
 - [FLIR Blackfly S BFS-U3-123S6C-C](https://www.teledynevisionsolutions.com/en-gb/products/blackfly-s-usb3/?model=BFS-U3-123S6C-C&vertical=machine+vision&segment=iis) cameras **x2**
 - [UM982 dual-antenna GNSS receiver](https://www.amazon.com/dp/B0FCFZXDDJ?lv=shuf&rsd=D5eDWMLU%2BlZo6H0ytWeBpEDHKXB%2FOcsDmcQZWwHV38CM3ISNZMfZLK1%2FrAAe8%2Fnf8sC3sOUDDCqGa9AzsXbzcDa01EuH3%2FG1VnOwXIxYSYYF&edk=AQIDAHi1lw%2FM8UbbSMD9ScOOFEmBMHMthHeEhqDaQYPJUAX3jQFkG1KajJRK0UpRjdW%2FOK8dAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMNue5pNQTD4syVtUoAgEQgDu7Fq4A7aVxOrC%2BURE4feV3vhHwf5frlgX6dqASVvksRvEaQAYA46izYui3WygErr4Sb%2BhMZgkKwi79wQ%3D%3D&social_share=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&channelId=704&ref_=cm_sw_r_apin_dp_TP36CY53FWREGK9BPECT&plpRedirect=mhFallback&th=1)
 - [GNSS Multi-Band L1/L2/L5 Surveying Antenna - TNC (SPK6618H)](https://www.sparkfun.com/gnss-multi-band-l1-l2-l5-surveying-antenna-tnc-spk6618h.html?gad_source=1&gad_campaignid=21251727806&gbraid=0AAAAADsj4ESEiGaW3DcX3fRbrfV9ID-rR) **x2**

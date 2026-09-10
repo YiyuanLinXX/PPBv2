@@ -30,7 +30,10 @@ def process_single_file(input_dir, output_dir, filename):
 
         # OpenCV writes BGR arrays. The explicit RGGB constant avoids the
         # confusing legacy COLOR_BAYER_RG2RGB alias while preserving behavior.
-        bgr_image = cv2.cvtColor(bayer, cv2.COLOR_BayerRGGB2BGR)
+        # Older Jetson OpenCV builds lack the explicit four-letter aliases.
+        # Legacy BG2BGR also interprets the input mosaic as RGGB.
+        conversion = getattr(cv2, 'COLOR_BayerRGGB2BGR', cv2.COLOR_BayerBG2BGR)
+        bgr_image = cv2.cvtColor(bayer, conversion)
         if not cv2.imwrite(output_path, bgr_image):
             raise OSError('cv2.imwrite failed')
         return filename, None

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "reference_frame": {
+    "name": "robot_gnss_midpoint",
+    "origin": "midpoint_of_two_GNSS_antennas_at_robot_horizontal_center",
+    "axes": {"x": "robot_forward", "y": "robot_left", "z": "up"},
+    "position_unit": "m"
+  },
+  "measurement_source": "user_provided_installation_dimensions",
+  "calibration": {"status": "external_not_provided", "performed_by_acquisition": false},
+  "cameras": {
+    "24071782": {"location": "left_front", "stereo_pair": "robot_left", "position_m": [0.0, 0.545, -0.560], "rotation_camera_to_reference": null, "stereo_input_role": null},
+    "24071775": {"location": "left_rear", "stereo_pair": "robot_left", "position_m": [-0.050, 0.545, -0.560], "rotation_camera_to_reference": null, "stereo_input_role": null},
+    "24071784": {"location": "right_front", "stereo_pair": "robot_right", "position_m": [0.0, -0.545, -0.560], "rotation_camera_to_reference": null, "stereo_input_role": null},
+    "24071783": {"location": "right_rear", "stereo_pair": "robot_right", "position_m": [-0.050, -0.545, -0.560], "rotation_camera_to_reference": null, "stereo_input_role": null}
+  },
+  "nominal_stereo_baseline_m": {"robot_left": 0.050, "robot_right": 0.050},
+  "notes": "Nominal installation offsets, not calibrated extrinsics. Null rotations and stereo input roles are unknown. GNSS altitude is not camera altitude or height above ground."
+}

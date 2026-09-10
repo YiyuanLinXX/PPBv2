@@ -21,7 +21,13 @@ from std_msgs.msg import String
 
 from multi_camera_trigger.image_io import (
     normalize_image_format,
+    parse_camera_image_formats,
+    resolve_camera_image_formats,
     save_frame_atomic,
+)
+from multi_camera_trigger.metadata import (
+    camera_readback, encoding_metadata, load_layout,
+    software_versions, utc_now, write_json,
 )
 
 
@@ -54,6 +60,9 @@ class MultiCameraTriggerNode(Node):
         self.cam_list = None
         self.image_processor = None
         self.gps_subscription = None
+        self._metadata_ready = False
+        self._run_error = None
+        self._created_at_utc = utc_now()
 
         self._declare_parameters()
 
@@ -64,6 +73,7 @@ class MultiCameraTriggerNode(Node):
             self._create_gps_subscription()
             os.makedirs(self.output_dir, exist_ok=True)
             self._initialize_cameras()
+            self._write_session_metadata()
             self._save_executors = {
                 entry['serial']: ThreadPoolExecutor(
                     max_workers=1,
@@ -85,33 +95,41 @@ class MultiCameraTriggerNode(Node):
             self.cleanup()
 
     def _declare_parameters(self):
-        self.declare_parameter('output_dir', '/tmp')
-        self.declare_parameter('image_format', 'jpg')
-        self.declare_parameter('jpeg_quality', 95)
-        self.declare_parameter('jpeg_subsampling', 2)
-        self.declare_parameter('png_compress_level', 3)
-        self.declare_parameter('save_queue_depth', 4)
-        self.declare_parameter('timestamp_recalibration_sec', 60.0)
-        self.declare_parameter('overwrite_existing', False)
-        self.declare_parameter('arduino_port', '/dev/ttyACM0')
-        self.declare_parameter('arduino_baud', 9600)
-        self.declare_parameter('arduino_startup_delay_sec', 2.0)
-        self.declare_parameter('arduino_heartbeat_period_sec', 0.5)
-        self.declare_parameter('exposure_time', 400.0)
-        self.declare_parameter('gain', 5.0)
-        self.declare_parameter('wb_red', 1.34)
-        self.declare_parameter('wb_blue', 2.98)
-        self.declare_parameter('gps_detail_topic', '/imaging/gps/fix_detail')
-        self.declare_parameter('gps_qos_depth', 200)
-        self.declare_parameter('gps_match_max_age_sec', 0.25)
-        self.declare_parameter('camera_timeout_ms', 1000)
-        self.declare_parameter('camera_max_consecutive_failures', 5)
-        self.declare_parameter('resync_max_attempts', 3)
-        self.declare_parameter('resync_max_drop_frames', 10)
-        self.declare_parameter('resync_timeout_sec', 4.0)
-        self.declare_parameter('cross_camera_sync_tolerance_ms', 20.0)
-        self.declare_parameter('gps_failure_abort_sec', 3.0)
-        self.declare_parameter('status_log_every_n_frames', 20)
+        self._declared_parameter_names = []
+
+        def declare(name, default):
+            self.declare_parameter(name, default)
+            self._declared_parameter_names.append(name)
+
+        declare('output_dir', '/tmp')
+        declare('image_format', 'jpg')
+        declare('camera_image_formats', '')
+        declare('camera_layout_file', '')
+        declare('jpeg_quality', 95)
+        declare('jpeg_subsampling', 2)
+        declare('png_compress_level', 3)
+        declare('save_queue_depth', 4)
+        declare('timestamp_recalibration_sec', 60.0)
+        declare('overwrite_existing', False)
+        declare('arduino_port', '/dev/ttyACM0')
+        declare('arduino_baud', 9600)
+        declare('arduino_startup_delay_sec', 2.0)
+        declare('arduino_heartbeat_period_sec', 0.5)
+        declare('exposure_time', 400.0)
+        declare('gain', 5.0)
+        declare('wb_red', 1.34)
+        declare('wb_blue', 2.98)
+        declare('gps_detail_topic', '/imaging/gps/fix_detail')
+        declare('gps_qos_depth', 200)
+        declare('gps_match_max_age_sec', 0.25)
+        declare('camera_timeout_ms', 1000)
+        declare('camera_max_consecutive_failures', 5)
+        declare('resync_max_attempts', 3)
+        declare('resync_max_drop_frames', 10)
+        declare('resync_timeout_sec', 4.0)
+        declare('cross_camera_sync_tolerance_ms', 20.0)
+        declare('gps_failure_abort_sec', 3.0)
+        declare('status_log_every_n_frames', 20)
 
     def _read_parameters(self):
         def value(name):
@@ -119,6 +137,10 @@ class MultiCameraTriggerNode(Node):
 
         self.output_dir = str(value('output_dir'))
         self.image_format = normalize_image_format(str(value('image_format')))
+        self.camera_image_formats = parse_camera_image_formats(
+            str(value('camera_image_formats'))
+        )
+        self.camera_layout = load_layout(str(value('camera_layout_file')))
         self.jpeg_quality = int(value('jpeg_quality'))
         self.jpeg_subsampling = int(value('jpeg_subsampling'))
         self.png_compress_level = int(value('png_compress_level'))
@@ -228,15 +250,24 @@ class MultiCameraTriggerNode(Node):
         if camera_count == 0:
             raise RuntimeError('no cameras detected')
 
+        serials = [
+            self._camera_serial(self.cam_list[index], index)
+            for index in range(camera_count)
+        ]
+        resolved_formats = resolve_camera_image_formats(
+            serials, self.image_format, self.camera_image_formats
+        )
         self.get_logger().info(
-            f'Configuring {camera_count} camera(s); output format={self.image_format}, '
+            f'Configuring {camera_count} camera(s); '
+            f'output formats={resolved_formats}, '
             f'JPEG quality={self.jpeg_quality}, '
             f'subsampling={self.jpeg_subsampling}, '
             f'save queue depth={self.save_queue_depth}'
         )
-        if camera_count > 2 and self.image_format == 'jpg':
+        jpeg_count = sum(fmt == 'jpg' for fmt in resolved_formats.values())
+        if jpeg_count > 2:
             self.get_logger().warn(
-                f'{camera_count} full-resolution cameras may exceed the CPU JPEG '
+                f'{jpeg_count} full-resolution JPEG cameras may exceed the CPU JPEG '
                 'throughput at 2 FPS; monitor save-queue warnings'
             )
         for index in range(camera_count):
@@ -245,7 +276,8 @@ class MultiCameraTriggerNode(Node):
                 'cam': cam,
                 'nodemap': None,
                 'dir': None,
-                'serial': f'cam{index}',
+                'serial': serials[index],
+                'image_format': resolved_formats[serials[index]],
                 'csv_file': None,
                 'csv_writer': None,
                 'counter': 1,
@@ -263,16 +295,107 @@ class MultiCameraTriggerNode(Node):
             nodemap = cam.GetNodeMap()
             entry['nodemap'] = nodemap
 
-            serial = self._camera_serial(cam, index)
-            entry['serial'] = serial
+            serial = entry['serial']
+            self.get_logger().info(
+                f"{serial}: saving {entry['image_format']} images"
+            )
             self._configure_camera(nodemap, serial)
             entry['chunk_tick_ns'] = self._camera_tick_period_ns(entry)
             self._calibrate_camera_timestamp(entry)
             self._prepare_camera_output(entry)
+            self._write_camera_metadata(entry)
 
             cam.BeginAcquisition()
             entry['acquiring'] = True
         self._last_timestamp_calibration_monotonic = time.monotonic()
+
+    def _write_camera_metadata(self, entry):
+        """Keep actual hardware values and nominal mounting data with images."""
+        layout = self.camera_layout
+        metadata = {
+            'schema_version': 1,
+            'serial': entry['serial'],
+            'captured_at_host_utc': utc_now(),
+            'parameter_scope': 'startup readback after configuration, before acquisition; '
+                               'not per-frame measurements',
+            'installation_reference_frame': layout.get('reference_frame'),
+            'installation': layout['cameras'].get(entry['serial']),
+            'installation_status': 'user_provided_nominal' if entry['serial'] in
+                                   layout['cameras'] else 'not_provided',
+            'calibration': layout.get('calibration', {'status': 'not_provided'}),
+            'requested_settings': {
+                'exposure_time_us': self.exposure_time, 'gain_db': self.gain_value,
+                'wb_red': self.wb_red, 'wb_blue': self.wb_blue,
+            },
+            'actual_settings': camera_readback(
+                PySpin, entry['nodemap'], entry['cam'].GetTLDeviceNodeMap()
+            ),
+            'encoding': encoding_metadata(
+                entry['image_format'], self.jpeg_quality,
+                self.jpeg_subsampling, self.png_compress_level,
+            ),
+            'initial_clock_mapping': {
+                'camera_to_ros_offset_ns': entry['timestamp_offset_ns'],
+                'uncertainty_ns': entry['timestamp_uncertainty_ns'],
+                'recalibration_period_sec': self.timestamp_recalibration_sec,
+                'note': 'Per-frame raw and estimated times, source and uncertainty '
+                        'are in Timestamp_GPS.csv; this mapping is initial only.',
+            },
+        }
+        write_json(Path(entry['dir']) / 'camera_metadata.json', metadata)
+
+    def _write_session_metadata(self):
+        """Write self-contained run metadata after all cameras initialize."""
+        versions = software_versions()
+        try:
+            version = self.system.GetLibraryVersion()
+            versions['spinnaker_library'] = {
+                key: getattr(version, key) for key in ('major', 'minor', 'type', 'build')
+            }
+        except Exception:
+            versions['spinnaker_library'] = None
+        write_json(Path(self.output_dir) / 'session_metadata.json', {
+            'schema_version': 1, 'created_at_host_utc': self._created_at_utc,
+            'camera_layout': self.camera_layout,
+            'cameras': {e['serial']: {
+                'format': e['image_format'],
+                'metadata_file': f"{e['serial']}/camera_metadata.json",
+                'frame_metadata_file': f"{e['serial']}/Timestamp_GPS.csv",
+            } for e in self.cameras},
+            'effective_node_parameters': {
+                name: self.get_parameter(name).value
+                for name in self._declared_parameter_names
+            },
+            'software_versions': versions,
+            'time_conventions': {
+                'host_clock_timezone': str(datetime.datetime.now().astimezone().tzinfo),
+                'host_clock_utc_offset_sec': datetime.datetime.now().astimezone()
+                .utcoffset().total_seconds(),
+                'use_sim_time': self.get_parameter('use_sim_time').value,
+                'host_clock_sync_source': None,
+                'host_clock_sync_status': 'not_measured',
+                'exposure_ros_time': 'estimated from camera timestamp latch to ROS clock',
+                'timestamp_event': 'camera SDK chunk timestamp; exact exposure '
+                                   'start/midpoint semantics not independently verified',
+                'gps_ros_time': 'host ROS time assigned when processing GGA',
+                'satellite_utc': 'GGA UTC time of day; date not supplied by GGA',
+                'gps_match_delta': 'absolute batch-mean estimated exposure ROS time '
+                                   'minus GPS message ROS time; not absolute UTC accuracy',
+            },
+            'gnss_position_conventions': {
+                'csv_camera_position': 'GNSS antenna midpoint, not camera optical center',
+                'root_csv_positions': ['ANT1', 'GNSS antenna midpoint'],
+                'altitude_unit': 'm',
+                'altitude_source': 'GGA field 9 plus midpoint pitch/baseline correction',
+                'geoid_separation_recorded': False,
+                'ellipsoid_height_conversion_applied': False,
+                'invalid_position': 'blank CSV fields; check fix and dual validity flags',
+                'camera_world_position_computed': False,
+            },
+            'calibration_performed': False,
+            'completion_record': 'run_summary.json; missing means shutdown was not recorded',
+        })
+        self._metadata_ready = True
 
     @staticmethod
     def _camera_serial(cam, index):
@@ -673,7 +796,7 @@ class MultiCameraTriggerNode(Node):
                     chunk_time_ns + entry['timestamp_offset_ns']
                 )
                 exposure_time_source = 'camera_chunk_latch_calibrated'
-            if self.image_format == 'pgm':
+            if entry['image_format'] == 'pgm':
                 frame_data = bytes(image.GetData())
             else:
                 converted = self.image_processor.Convert(
@@ -844,14 +967,14 @@ class MultiCameraTriggerNode(Node):
         cross_camera_delta_ms,
     ):
         entry = frame['entry']
-        filename = f"{entry['counter']:06d}.{self.image_format}"
+        filename = f"{entry['counter']:06d}.{entry['image_format']}"
         output_path = os.path.join(entry['dir'], filename)
         save_frame_atomic(
             output_path=output_path,
             data=frame['data'],
             width=frame['width'],
             height=frame['height'],
-            image_format=self.image_format,
+            image_format=entry['image_format'],
             jpeg_quality=self.jpeg_quality,
             jpeg_subsampling=self.jpeg_subsampling,
             png_compress_level=self.png_compress_level,
@@ -1102,6 +1225,7 @@ class MultiCameraTriggerNode(Node):
 
         self.get_logger().info('Starting acquisition loop...')
         if not self._start_arduino():
+            self._run_error = 'Arduino start/handshake failed'
             self.cleanup()
             return False
 
@@ -1182,6 +1306,7 @@ class MultiCameraTriggerNode(Node):
 
             if self._arduino_failed_event.is_set():
                 success = False
+                self._run_error = 'Arduino communication failed'
                 self.get_logger().error(
                     'Stopping acquisition because Arduino communication failed'
                 )
@@ -1189,6 +1314,7 @@ class MultiCameraTriggerNode(Node):
             self.get_logger().info('Stopping acquisition')
         except Exception as exc:
             success = False
+            self._run_error = str(exc)
             self.get_logger().error(f'Acquisition stopped by an error: {exc}')
         finally:
             self.cleanup()
@@ -1216,6 +1342,19 @@ class MultiCameraTriggerNode(Node):
             self.arduino = None
 
         self._shutdown_save_executors()
+
+        if self._metadata_ready:
+            try:
+                write_json(Path(self.output_dir) / 'run_summary.json', {
+                    'schema_version': 1, 'shutdown_at_host_utc': utc_now(),
+                    'camera_node_error': self._run_error,
+                    'camera_node_shutdown': 'error' if self._run_error else 'stopped',
+                    'frames_saved': {e['serial']: e['counter'] - 1 for e in self.cameras},
+                    'note': 'Camera-node summary only; no claim about supervisor exit '
+                            'reason or total hardware trigger count. See launcher logs.',
+                })
+            except Exception as exc:
+                self.get_logger().error(f'Failed to write run metadata: {exc}')
 
         for entry in self.cameras:
             cam = entry['cam']

@@ -11,15 +11,15 @@
 # Everything below this section can normally be left unchanged.
 # =============================================================================
 
-# Folder containing this launcher and the built PPBv2 Imaging program.
-# Override with PPBV2_IMAGING_WORKSPACE only if the launcher is stored elsewhere.
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="${PPBV2_IMAGING_WORKSPACE:-$SCRIPT_DIR}"
+# Folder containing the built PPBv2 Imaging program
+WORKSPACE="/home/cairlab/PPBv2/PPBv2_Imaging"
 
-# Parent folder where each data-collection folder will be saved.
-# USER normally contains the account running this script.
-CURRENT_USER="${USER:-$(id -un)}"
-DATA_ROOT="${PPBV2_DATA_ROOT:-/media/Data/$CURRENT_USER}"
+# Nominal camera positions relative to the GNSS antenna midpoint (meters).
+# X forward, Y left, Z up. Calibration is handled by a separate program.
+CAMERA_LAYOUT_FILE="${CAMERA_LAYOUT_FILE:-$WORKSPACE/config/camera_layout.json}"
+
+# Parent folder where each data-collection folder will be saved
+DATA_ROOT="${PPBV2_DATA_ROOT:-/media/Data/cairlab}"
 
 # Arduino connection
 ARDUINO_PORT="/dev/serial/by-id/usb-Arduino_UNO_WiFi_R4_CMSIS-DAP_F412FA9CA7F8-if01"
@@ -60,6 +60,22 @@ WB_BLUE=2.98             # Blue white balance
 #
 # PNG is not suitable for real-time full-resolution multi-camera acquisition.
 IMAGE_FORMAT="${IMAGE_FORMAT:-jpg}"
+
+# Per-camera overrides: uncomment/add one "SERIAL=FORMAT" line per camera.
+# Use the full serial number, not the USB enumeration order or physical side.
+# Cameras not listed here use IMAGE_FORMAT above. An explicitly listed camera
+# must be connected; missing/duplicate serials stop startup with an error.
+# Example only (assign JPG/PGM after identifying your physical stereo pairs):
+CAMERA_FORMAT_SETTINGS=(
+  "24071775=jpg"
+  "24071782=pgm"
+  "24071783=jpg"
+  "24071784=pgm"
+)
+# An environment override replaces the complete table; an empty value clears it.
+# Example: CAMERA_IMAGE_FORMATS='24071775=jpg,24071782=pgm' bash PPBv2_Imaging.bash
+CAMERA_IMAGE_FORMATS="${CAMERA_IMAGE_FORMATS-$(IFS=,; echo "${CAMERA_FORMAT_SETTINGS[*]}")}"
+
 JPEG_QUALITY=95           # Range: 1 to 100
 JPEG_SUBSAMPLING=2        # 0=4:4:4, 1=4:2:2, 2=4:2:0 (fastest)
 PNG_COMPRESS_LEVEL=3      # Range: 0 to 9
@@ -87,7 +103,7 @@ GPS_BAUD=115200
 # UM982 dual-antenna settings
 UM982_BASELINE_M=1.18                     # Measured distance between antennas, meters
 UM982_BASELINE_TOLERANCE_M=0.1            # Allowed distance error, in meters
-UM982_ANTENNA_BASELINE_ANGLE_DEG=-90.0    # ANT2 is left of ANT1; output is robot-forward heading
+UM982_ANTENNA_BASELINE_ANGLE_DEG=-90.0      # Antenna direction relative to robot
 UM982_HEADING_OFFSET_DEG=0.0              # Heading calibration adjustment
 UM982_PITCH_MULTIPLIER=1.0                # Use -1.0 if pitch direction is reversed
 UM982_OUTPUT_PERIOD_SEC=0.1                # One GPS update every 0.1 seconds
@@ -147,7 +163,22 @@ if [[ "$IMAGE_FORMAT" != "png" && "$IMAGE_FORMAT" != "jpg" && "$IMAGE_FORMAT" !=
   exit 1
 fi
 
-if [[ "$IMAGE_FORMAT" == "png" ]]; then
+# Validate serial mappings before creating files or starting hardware. Normalize
+# overrides so PNG warnings also cover per-camera selections.
+CAMERA_IMAGE_FORMATS=$(python3 - "$CAMERA_IMAGE_FORMATS" <<'PY'
+import sys
+from multi_camera_trigger.image_io import parse_camera_image_formats
+
+try:
+    formats = parse_camera_image_formats(sys.argv[1])
+except ValueError as exc:
+    print(f'ERROR: {exc}', file=sys.stderr)
+    sys.exit(1)
+print(','.join(f'{serial}={fmt}' for serial, fmt in formats.items()))
+PY
+) || exit 1
+
+if [[ "$IMAGE_FORMAT" == "png" || ",$CAMERA_IMAGE_FORMATS," == *"=png,"* ]]; then
   echo "WARNING: Full-resolution PNG encoding cannot sustain the 2 FPS target"
   echo "on this system. Frames will accumulate in the bounded save queue and"
   echo "acquisition will slow down when the queue becomes full."
@@ -185,12 +216,36 @@ if [[ -e "$OUTPUT_DIR" ]]; then
   exit 1
 fi
 
-mkdir -p "$DATA_ROOT"
-mkdir "$OUTPUT_DIR"
+mkdir -p "$DATA_ROOT" || exit 1
+mkdir "$OUTPUT_DIR" || exit 1
+
+# Store the effective launch settings and source/config snapshots with the data.
+# Metadata failure aborts startup rather than collecting untraceable images.
+python3 "$WORKSPACE/src/multi_camera_trigger/multi_camera_trigger/metadata.py" \
+  "$OUTPUT_DIR" "$WORKSPACE" "${BASH_SOURCE[0]}" \
+  "camera_layout_file=$CAMERA_LAYOUT_FILE" \
+  "gps_port=$GPS_PORT" "gps_baud=$GPS_BAUD" \
+  "configure_receiver_on_start=true" \
+  "um982_baseline_m=$UM982_BASELINE_M" \
+  "um982_baseline_tolerance_m=$UM982_BASELINE_TOLERANCE_M" \
+  "um982_antenna_baseline_angle_deg=$UM982_ANTENNA_BASELINE_ANGLE_DEG" \
+  "um982_heading_offset_deg=$UM982_HEADING_OFFSET_DEG" \
+  "um982_pitch_multiplier=$UM982_PITCH_MULTIPLIER" \
+  "um982_output_period_sec=$UM982_OUTPUT_PERIOD_SEC" \
+  "image_format=$IMAGE_FORMAT" "camera_image_formats=$CAMERA_IMAGE_FORMATS" \
+  "exposure_time_us=$EXPOSURE_TIME" "gain_db=$GAIN" \
+  "wb_red=$WB_RED" "wb_blue=$WB_BLUE" \
+  "jpeg_quality=$JPEG_QUALITY" "jpeg_subsampling=$JPEG_SUBSAMPLING" \
+  "png_compress_level=$PNG_COMPRESS_LEVEL" "save_queue_depth=$SAVE_QUEUE_DEPTH" \
+  "arduino_port=$ARDUINO_PORT" "arduino_baud=$ARDUINO_BAUD" \
+  "ros_localhost_only=$ROS_LOCALHOST_ONLY" "ros_domain_id=$ROS_DOMAIN_ID" \
+  "process_virtual_memory_limit_bytes=$PROCESS_VIRTUAL_MEMORY_LIMIT_BYTES" \
+  || exit 1
 
 echo
 echo "Data will be saved in: $OUTPUT_DIR"
 echo "Image format: $IMAGE_FORMAT"
+echo "Per-camera overrides: ${CAMERA_IMAGE_FORMATS:-none (all cameras use the default)}"
 echo
 
 
@@ -282,6 +337,8 @@ start_program "cameras and Arduino trigger" \
   --ros-args \
     -p output_dir:="$OUTPUT_DIR" \
     -p image_format:="$IMAGE_FORMAT" \
+    -p "camera_image_formats:='$CAMERA_IMAGE_FORMATS'" \
+    -p "camera_layout_file:='$CAMERA_LAYOUT_FILE'" \
     -p jpeg_quality:="$JPEG_QUALITY" \
     -p jpeg_subsampling:="$JPEG_SUBSAMPLING" \
     -p png_compress_level:="$PNG_COMPRESS_LEVEL" \

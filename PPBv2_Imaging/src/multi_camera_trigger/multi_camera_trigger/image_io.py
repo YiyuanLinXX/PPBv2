@@ -21,6 +21,40 @@ def normalize_image_format(value: str) -> str:
     return normalized
 
 
+def parse_camera_image_formats(value: str) -> dict:
+    """Parse comma-separated SERIAL=FORMAT overrides, rejecting duplicates."""
+    formats = {}
+    if not value.strip():
+        return formats
+    for item in value.split(','):
+        serial, separator, image_format = item.strip().partition('=')
+        serial = serial.strip()
+        if not separator or not serial or not serial.isascii() or not serial.isalnum():
+            raise ValueError(
+                f'invalid camera image format {item!r}; expected SERIAL=FORMAT'
+            )
+        if serial in formats:
+            raise ValueError(f'duplicate camera serial in image formats: {serial}')
+        formats[serial] = normalize_image_format(image_format)
+    return formats
+
+
+def resolve_camera_image_formats(serials, default_format, overrides):
+    """Resolve formats by serial and fail if a configured camera is missing."""
+    if len(set(serials)) != len(serials):
+        raise ValueError('duplicate detected camera serials')
+    missing = sorted(set(overrides) - set(serials))
+    if missing:
+        raise ValueError(
+            'camera_image_formats contains undetected camera serial(s): '
+            + ', '.join(missing)
+        )
+    return {
+        serial: overrides.get(serial, default_format)
+        for serial in serials
+    }
+
+
 def save_frame_atomic(
     output_path: str,
     data: bytes,
