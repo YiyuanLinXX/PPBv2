@@ -26,6 +26,8 @@ git switch main            # Dual GPS
 git switch single-gps-imu  # Single GPS + IMU
 ```
 
+<img src="assets/nav_system.jpg" width="100%" />
+
 ## PPBv2 Modular Design
 
 <img src="assets/PPBv2_System_Modular_Design_20260726_horizontal.png" width="100%" />
