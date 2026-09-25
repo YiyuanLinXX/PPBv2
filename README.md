@@ -47,6 +47,18 @@ For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imagin
 If you find this work useful for your research, please consider citing our work:
 
 ```bibtex
+# PPBv2 Navigation
+@misc{lin2026fielddeployablegnssbasednavigationstack,
+      title={A Field-Deployable GNSS-based Navigation Stack for Outdoor Mobile Robots}, 
+      author={Yiyuan Lin and Cole Regnier and Yu Jiang},
+      year={2026},
+      eprint={2609.28933},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2609.28933}, 
+}
+
+# PPBv2
 Citation information will be updated upon publication.
 ```
 

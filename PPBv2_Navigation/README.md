@@ -552,6 +552,26 @@ Example:
 - Re-upload the repository's `FeatherM4_MCU/code.py` after safety changes; changing Raspberry Pi files does not update the microcontroller firmware.
 - Always test controller changes in an open area before running between rows.
 
+## Citation
+
+If you find this work useful for your research, please consider citing our work:
+
+```bibtex
+# PPBv2 Navigation
+@misc{lin2026fielddeployablegnssbasednavigationstack,
+      title={A Field-Deployable GNSS-based Navigation Stack for Outdoor Mobile Robots}, 
+      author={Yiyuan Lin and Cole Regnier and Yu Jiang},
+      year={2026},
+      eprint={2609.28933},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2609.28933}, 
+}
+
+# PPBv2
+Citation information will be updated upon publication.
+```
+
 ## Maintenance
 
 For questions, contact Yiyuan Lin at yl3663@cornell.edu.
