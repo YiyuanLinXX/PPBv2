@@ -1,6 +1,6 @@
 # PPBv2
 
-Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 29, 2026
+Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on Oct 04, 2026
 
 [[**`Project Page`**](https://yiyuanlinxx.github.io/robots/ppbv2)] [[**`Paper (Robot Navigation)`**](https://doi.org/10.48550/arXiv.2609.28933)] [[**`Citation`**](#citation)]
 
