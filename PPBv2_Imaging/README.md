@@ -6,6 +6,8 @@ Last updated by [Yiyuan Lin](mailto:yl3663@cornell.edu) on August 29, 2026
 
 ROS 2  package for synchronized multi-camera triggering, RGB/raw image recording, GNSS logging, and external strobe control.
 
+<img src="../assets/ppbv2.png" width="100%" />
+
 ## Hardware
 
 - [NVIDIA Jetson AGX Orin 64 GB](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/)

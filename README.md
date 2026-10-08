@@ -44,6 +44,8 @@ This is the ROS 2 package for synchronized multi-camera image triggering, GPS da
 
 For implementation details, please refer to: [PPBv2 Imaging README](PPBv2_Imaging/README.md).
 
+<img src="assets/ppbv2.png" width="100%" />
+
 ## PPBv2 Sample Data
 
 All data were collected during daylight hours.
